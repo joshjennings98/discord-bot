@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -136,4 +137,33 @@ func SplitCommand(input string) []string {
 		}
 	}
 	return r
+}
+
+type Month struct {
+	Name string
+	Days int
+}
+
+func appendZero(i int) string {
+	if i < 10 {
+		return fmt.Sprintf("0%d", i)
+	}
+	return fmt.Sprintf("%d", i)
+}
+
+func ConvertYearDayToDate(day string) (date string, err error) {
+	count, err := strconv.Atoi(day)
+	if err != nil {
+		return "", fmt.Errorf("error parsing day as date %w", err)
+	}
+	monthDays := [12]int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 30}
+	for i, month := range monthDays {
+		count -= month
+		if count < 0 {
+			day := count + month
+			date := fmt.Sprintf("%d/%s", day, appendZero(i+1))
+			return date, nil
+		}
+	}
+	return "", fmt.Errorf("error parsing day as date %w", err)
 }

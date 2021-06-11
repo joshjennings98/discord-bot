@@ -50,12 +50,29 @@ func CheckForBirthdayInDatabase(dbPath string, t time.Time) (birthdays []string,
 	return
 }
 
+func CheckForUsersBirthdayInDatabase(dbPath, userID string) (birthday string, err error) {
+	db, err := bolt.Open(dbPath, 0600, nil)
+	if err != nil {
+		return "", fmt.Errorf("could not open db, %v", err)
+	}
+	defer db.Close()
+	println("Checking for today's birthdays")
+	err = db.View(func(tx *bolt.Tx) error {
+		birthday = string(tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Get([]byte(userID)))
+		return nil
+	})
+	return
+}
+
 func AddBirthdayToDatabase(dbPath string, id string, date time.Time) error {
 	db, err := bolt.Open(dbPath, 0600, nil)
 	if err != nil {
 		return fmt.Errorf("could not open db, %v", err)
 	}
 	defer db.Close()
+	if date.Month().String() == "February" && date.Day() == 29 {
+		// oh no
+	}
 	dateString := strconv.Itoa(date.YearDay())
 	err = db.Update(func(tx *bolt.Tx) error {
 		err := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Put([]byte(id), []byte(dateString))
@@ -99,17 +116,17 @@ func WishHappyBirthday(s string, session *discordgo.Session, cfg BotConfiguratio
 	}
 }
 
-func CheckTodaysBirthdays(s string, session *discordgo.Session, cfg BotConfiguration) {
+func CheckTodaysBirthdays(s string, session *discordgo.Session, channelID string) {
 	birthdays, _ := CheckForBirthdayInDatabase(s, time.Now())
 	for _, b := range birthdays {
-		session.ChannelMessageSend(cfg.Channel, fmt.Sprintf("<@%s> has their birthday today :smile:", b))
+		session.ChannelMessageSend(channelID, fmt.Sprintf("<@%s> has their birthday today :smile:", b))
 	}
 	if len(birthdays) == 0 {
-		session.ChannelMessageSend(cfg.Channel, "Nobody has their birthday today :cry:")
+		session.ChannelMessageSend(channelID, "Nobody has their birthday today :cry:")
 	}
 }
 
-func NextBirthday(dbPath string, session *discordgo.Session, cfg BotConfiguration) (err error) {
+func NextBirthday(dbPath string, session *discordgo.Session, channelID string) (err error) {
 	db, err := bolt.Open(dbPath, 0600, nil)
 	if err != nil {
 		return fmt.Errorf("could not open db, %v", err)
@@ -129,7 +146,7 @@ func NextBirthday(dbPath string, session *discordgo.Session, cfg BotConfiguratio
 		return
 	}
 	if len(birthdays) == 0 {
-		session.ChannelMessageSend(cfg.Channel, "There are no birthdays in the database.")
+		session.ChannelMessageSend(channelID, "There are no birthdays in the database.")
 		return
 	}
 	sort.Sort(birthdays)
@@ -139,7 +156,7 @@ func NextBirthday(dbPath string, session *discordgo.Session, cfg BotConfiguratio
 			return err
 		}
 		if date > today {
-			session.ChannelMessageSend(cfg.Channel, fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", birthday.ID, (date-today)))
+			session.ChannelMessageSend(channelID, fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", birthday.ID, (date-today)))
 			return nil
 		}
 	}
@@ -148,6 +165,6 @@ func NextBirthday(dbPath string, session *discordgo.Session, cfg BotConfiguratio
 		return err
 	}
 	// catch any dates that have wrapped round
-	session.ChannelMessageSend(cfg.Channel, fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", birthdays[0].ID, (365-today+date)))
+	session.ChannelMessageSend(channelID, fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", birthdays[0].ID, (365-today+date)))
 	return
 }
