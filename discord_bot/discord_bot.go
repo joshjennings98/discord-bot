@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -102,6 +103,17 @@ func isUser(input string, s *discordgo.Session) (b bool, id string) {
 	return true, user
 }
 
+func getCommandParts(input string) []string {
+	s := strings.Split(input, " ")
+	var r []string
+	for _, str := range s {
+		if str != "" {
+			r = append(r, str)
+		}
+	}
+	return r
+}
+
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Ignore all messages created by the bot itself
 	if m.Author.ID == s.State.User.ID {
@@ -117,31 +129,51 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	if strings.HasPrefix(m.Content, "!bd") {
-		command := strings.Split(m.Content, " ")
-		if len(command) != 4 {
-			s.ChannelMessageSend(m.ChannelID, "Only adding birthdays are supported right now. Please use the format '!bd add <user> <date>")
-		} else if b, id := isUser(command[2], s); command[1] == "add" && b && isValidDate(command[3]) {
-			date, err := time.Parse("02/01/06 03:04:05 PM", command[3]+" 00:00:00 AM")
-			if err != nil {
-				s.ChannelMessageSend(m.ChannelID, "Date must be of the format dd/mm/yy")
-				return
+		command := getCommandParts(m.Content)
+		if len(command) == 4 {
+			if command[1] == "add" {
+				if isValidUser, id := isUser(command[2], s); isValidUser && isValidDate(command[3]) {
+					date, err := time.Parse("02/01/06 03:04:05 PM", command[3]+" 00:00:00 AM")
+					if err != nil {
+						s.ChannelMessageSend(m.ChannelID, "Date must be of the format dd/mm/yy")
+						return
+					}
+					addBirthdayToDatabase(BotConfig.DB, id, date)
+					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Successfully added birthday for <@!%s> on %s", id, command[3]))
+				} else if !isValidDate(command[3]) {
+					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Invalid date %s", command[3]))
+				}
+			} else {
+				s.ChannelMessageSend(m.ChannelID, "Valid commands:\n\t- `!bd add <user> <date>`\n\t- `!bd next`\n\t- `!bd check`\n\t- `!bd help`")
 			}
-			addBirthdayToDatabase(BotConfig.DB, id, date)
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Successfully added birthday for <@!%s> on %s", id, command[3]))
-		} else if !isValidDate(command[3]) {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Invalid date %s", command[3]))
+		} else if len(command) == 2 {
+			if command[1] == "today" {
+				checkTodaysBirthdays(BotConfig.DB, s)
+			} else if command[1] == "next" {
+				err := nextBirthday(BotConfig.DB, s)
+				if err != nil {
+					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("error getting next birthday %s", err.Error()))
+					return
+				}
+			} else if command[1] == "help" {
+				s.ChannelMessageSend(m.ChannelID, "Valid commands:\n\t- `!bd add <user> <date>`\n\t- `!bd next`\n\t- `!bd check`\n\t- `!bd help`")
+			} else {
+				s.ChannelMessageSend(m.ChannelID, "Valid commands:\n\t- `!bd add <user> <date>`\n\t- `!bd next`\n\t- `!bd check`\n\t- `!bd help`")
+			}
+		} else {
+			s.ChannelMessageSend(m.ChannelID, "Valid commands:\n\t- `!bd add <user> <date>`\n\t- `!bd next`\n\t- `!bd check`\n\t- `!bd help`")
 		}
 	}
 }
 
-func checkForBirthdayInDatabase(dbPath string) (birthdays []string, err error) {
+func checkForBirthdayInDatabase(dbPath string, t time.Time) (birthdays []string, err error) {
 	db, err := bolt.Open(dbPath, 0600, nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not open db, %v", err)
 	}
 	defer db.Close()
 	birthdays = []string{}
-	date := strconv.Itoa(time.Now().YearDay())
+	date := strconv.Itoa(t.YearDay())
 	println("Checking for today's birthdays")
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS"))
@@ -199,10 +231,81 @@ func setupBirthdayDatabase(dbPath string) (err error) {
 }
 
 func wishHappyBirthday(s string, session *discordgo.Session) {
-	birthdays, _ := checkForBirthdayInDatabase(s)
+	birthdays, _ := checkForBirthdayInDatabase(s, time.Now())
 	for _, b := range birthdays {
 		session.ChannelMessageSend(BotConfig.Channel, fmt.Sprintf("Happy Birthday <@%s>!!! :partying_face:", b))
 	}
+}
+
+func checkTodaysBirthdays(s string, session *discordgo.Session) {
+	birthdays, _ := checkForBirthdayInDatabase(s, time.Now())
+	for _, b := range birthdays {
+		session.ChannelMessageSend(BotConfig.Channel, fmt.Sprintf("<@%s> has their birthday today :smile:", b))
+	}
+	if len(birthdays) == 0 {
+		session.ChannelMessageSend(BotConfig.Channel, "Nobody has their birthday today :cry:")
+	}
+}
+
+type Birthday struct {
+	ID   string
+	Date string
+}
+
+type Birthdays []Birthday
+
+func (b Birthdays) Len() int {
+	return len(b)
+}
+func (a Birthdays) Less(i, j int) bool {
+	return a[i].Date < a[j].Date // YearDay :)
+}
+
+func (a Birthdays) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func nextBirthday(dbPath string, session *discordgo.Session) error {
+	db, err := bolt.Open(dbPath, 0600, nil)
+	if err != nil {
+		return fmt.Errorf("could not open db, %v", err)
+	}
+	defer db.Close()
+	birthdays := Birthdays{}
+	today := time.Now().YearDay()
+	err = db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS"))
+		b.ForEach(func(k, v []byte) error {
+			birthdays = append(birthdays, Birthday{ID: string(k), Date: string(v)})
+			return nil
+		})
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if len(birthdays) == 0 {
+		session.ChannelMessageSend(BotConfig.Channel, "There are no birthdays in the database.")
+		return nil
+	}
+	sort.Sort(birthdays)
+	for _, birthday := range birthdays {
+		date, err := strconv.Atoi(birthday.Date)
+		if err != nil {
+			return err
+		}
+		if date > today {
+			session.ChannelMessageSend(BotConfig.Channel, fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", birthday.ID, (date-today)))
+			return nil
+		}
+	}
+	date, err := strconv.Atoi(birthdays[0].Date)
+	if err != nil {
+		return err
+	}
+	// catch any dates that have wrapped round
+	session.ChannelMessageSend(BotConfig.Channel, fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", birthdays[0].ID, (365-today+date)))
+	return nil
 }
 
 func inTimeSpan(s1, s2, s3 string) bool {
