@@ -12,14 +12,16 @@ import (
 )
 
 const (
-	app = "bot"
+	app = "discord_bot"
 	// CLI flags
-	Token = "token"
+	Token       = "token"
+	BirthdaysDB = "birthdays_db"
+	Channel     = "channel"
+	Server      = "server"
 )
 
 var (
 	viperSession = viper.New()
-	BotConfig    bot.BotConfiguration
 )
 
 var rootCmd = &cobra.Command{
@@ -43,7 +45,7 @@ func Execute() {
 }
 
 func initCLI(ctx context.Context) (err error) {
-	if err := utils.LoadFromViper(viperSession, app, &BotConfig, bot.DefaultBotConfig()); err != nil {
+	if err := utils.LoadFromViper(viperSession, app, &bot.BotConfig, bot.DefaultBotConfig()); err != nil {
 		return err
 	}
 	return nil
@@ -51,8 +53,14 @@ func initCLI(ctx context.Context) (err error) {
 
 func init() {
 	rootCmd.Flags().StringP(Token, "t", "", "Bot token")
+	rootCmd.Flags().StringP(BirthdaysDB, "b", "", "Birthdays database")
+	rootCmd.Flags().StringP(Channel, "c", "", "Channel to send message on")
+	rootCmd.Flags().StringP(Server, "s", "", "Server to send message on")
 
-	_ = utils.BindFlagToEnv(viperSession, app, "BOT_TOKEN", rootCmd.Flags().Lookup(Token))
+	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_TOKEN", rootCmd.Flags().Lookup(Token))
+	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_BIRTHDAYS_DB", rootCmd.Flags().Lookup(BirthdaysDB))
+	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_CHANNEL", rootCmd.Flags().Lookup(Channel))
+	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_SERVER", rootCmd.Flags().Lookup(Server))
 }
 
 func RunCLI(ctx context.Context) error {
@@ -61,5 +69,5 @@ func RunCLI(ctx context.Context) error {
 		return err
 	}
 
-	return bot.StartBot(BotConfig)
+	return bot.StartBot()
 }
