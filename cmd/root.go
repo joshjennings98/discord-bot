@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/joshjennings98/discord-bot/commands"
 	bot "github.com/joshjennings98/discord-bot/discord_bot"
 	"github.com/joshjennings98/discord-bot/utils"
 	log "github.com/sirupsen/logrus"
@@ -45,7 +46,7 @@ func Execute() {
 }
 
 func initCLI(ctx context.Context) (err error) {
-	if err := utils.LoadFromViper(viperSession, app, &bot.BotConfig, bot.DefaultBotConfig()); err != nil {
+	if err := utils.LoadFromViper(viperSession, app, &bot.BotConfig, commands.DefaultBotConfig()); err != nil {
 		return err
 	}
 	return nil

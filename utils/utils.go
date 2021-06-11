@@ -3,12 +3,18 @@ package utils
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+)
+
+const (
+	SimpleTime = "15:04:05"
 )
 
 type Validator interface {
@@ -89,4 +95,45 @@ func BindFlagToEnv(viperSession *viper.Viper, envVarPrefix string, envVar string
 	}
 	err = viperSession.BindPFlag(strings.ReplaceAll(envVar, "_", "."), flag)
 	return
+}
+
+func IsValidDate(s string) bool {
+	re := regexp.MustCompile(`^(3[01]|[12][0-9]|0?[1-9])/(1[0-2]|0?[1-9])`)
+	return re.MatchString(s)
+}
+
+func RemoveChars(s string, chars []string) (newS string) {
+	newS = s
+	for _, char := range chars {
+		newS = strings.ReplaceAll(newS, char, "")
+	}
+	return
+}
+
+func InTimeInterval(startTime, endTime string, timeToCheck time.Time) bool {
+	start, err := time.Parse(SimpleTime, startTime)
+	if err != nil {
+		return false
+	}
+	end, err := time.Parse(SimpleTime, endTime)
+	if err != nil {
+		return false
+	}
+	check, err := time.Parse(SimpleTime, timeToCheck.Format(SimpleTime))
+	if err != nil {
+		return false
+	}
+
+	return !check.Before(start) && !check.After(end)
+}
+
+func SplitCommand(input string) []string {
+	s := strings.Split(input, " ")
+	var r []string
+	for _, str := range s {
+		if str != "" {
+			r = append(r, str)
+		}
+	}
+	return r
 }
