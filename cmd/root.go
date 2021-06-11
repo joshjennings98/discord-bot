@@ -53,7 +53,7 @@ func initCLI(ctx context.Context) (err error) {
 
 func init() {
 	rootCmd.Flags().StringP(Token, "t", "", "Bot token")
-	rootCmd.Flags().StringP(BirthdaysDB, "b", "", "Birthdays database")
+	rootCmd.Flags().StringP(BirthdaysDB, "d", "", "Birthdays database")
 	rootCmd.Flags().StringP(Channel, "c", "", "Channel to send message on")
 	rootCmd.Flags().StringP(Server, "s", "", "Server to send message on")
 

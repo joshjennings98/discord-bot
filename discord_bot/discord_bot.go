@@ -140,6 +140,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 					}
 					addBirthdayToDatabase(BotConfig.DB, id, date)
 					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Successfully added birthday for <@!%s> on %s", id, command[3]))
+				} else if !isValidUser {
+					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("@%s is not a user on this server.", id))
 				} else if !isValidDate(command[3]) {
 					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Invalid date %s", command[3]))
 				}
