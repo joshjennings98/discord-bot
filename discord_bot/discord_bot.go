@@ -72,7 +72,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				if isValidUser, id := utils.IsUser(command[2], s, BotConfig.Server); isValidUser && utils.IsValidDate(command[3]) {
 					date, err := time.Parse("02/01/06 03:04:05 PM", command[3]+"/01 00:00:00 AM")
 					if err != nil {
-						s.ChannelMessageSend(m.ChannelID, "Date must be of the format dd/mm (and not 29/02 cause I haven't got around to supporting that yet")
+						s.ChannelMessageSend(m.ChannelID, "Date must be of the format dd/mm (and not 29/02 cause I haven't got around to supporting that yet)")
 						return
 					}
 					commands.AddBirthdayToDatabase(BotConfig.DB, id, date)
