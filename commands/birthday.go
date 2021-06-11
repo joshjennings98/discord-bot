@@ -71,7 +71,7 @@ func AddBirthdayToDatabase(dbPath string, id string, date time.Time) error {
 	}
 	defer db.Close()
 	if date.Month().String() == "February" && date.Day() == 29 {
-		// oh no
+		return fmt.Errorf("TODO: Remember than people can be born on the 29th February")
 	}
 	dateString := strconv.Itoa(date.YearDay())
 	err = db.Update(func(tx *bolt.Tx) error {
