@@ -156,14 +156,35 @@ func ConvertYearDayToDate(day string) (date string, err error) {
 	if err != nil {
 		return "", fmt.Errorf("error parsing day as date %w", err)
 	}
-	monthDays := [12]int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 30}
-	for i, month := range monthDays {
-		count -= month
+	monthDays := [12]Month{
+		{"January", 31},
+		{"February", 28},
+		{"March", 31},
+		{"April", 30},
+		{"May", 31},
+		{"June", 30},
+		{"July", 31},
+		{"August", 31},
+		{"September", 30},
+		{"October", 31},
+		{"November", 30},
+		{"December", 30},
+	}
+	for _, month := range monthDays {
+		count -= month.Days
 		if count < 0 {
-			day := count + month
-			date := fmt.Sprintf("%d/%s", day, appendZero(i+1))
+			day := count + month.Days
+			date := fmt.Sprintf("%s %d", month.Name, day)
 			return date, nil
 		}
 	}
 	return "", fmt.Errorf("error parsing day as date %w", err)
+}
+
+func DaysInThisYear() int {
+	y := time.Now().Year()
+	if y%4 == 0 {
+		return 366
+	}
+	return 365
 }

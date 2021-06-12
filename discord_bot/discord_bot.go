@@ -15,7 +15,8 @@ import (
 )
 
 var (
-	BotConfig commands.BotConfiguration
+	BotConfig  commands.BotConfiguration
+	DiscordBot commands.DiscordBot
 )
 
 const (
@@ -33,6 +34,9 @@ func StartBot() (err error) {
 	dg.AddHandler(sendMessageInTimeInterval)
 	// We only care about receiving message events.
 	dg.Identify.Intents = discordgo.IntentsGuildMessages
+
+	// Set up DiscordBot
+	DiscordBot.SetupDiscordBot(BotConfig, dg)
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
@@ -66,66 +70,22 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	// Check for prefix
 	if strings.HasPrefix(m.Content, prefixCmd) {
-		command := utils.SplitCommand(m.Content)
-		if len(command) == 4 {
-			if command[1] == "add" {
-				if isValidUser, id := utils.IsUser(command[2], s, BotConfig.Server); isValidUser && utils.IsValidDate(command[3]) {
-					date, err := time.Parse("02/01/06 03:04:05 PM", command[3]+"/01 00:00:00 AM")
-					if err != nil {
-						s.ChannelMessageSend(m.ChannelID, "Date must be of the format dd/mm (and not 29/02 cause I haven't got around to supporting that yet)")
-						return
-					}
-					commands.AddBirthdayToDatabase(BotConfig.DB, id, date)
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Successfully added birthday for <@!%s> on %s", id, command[3]))
-				} else if !isValidUser {
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("@%s is not a user on this server.", id))
-				} else if !utils.IsValidDate(command[3]) {
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Invalid date %s", command[3]))
-				}
-			} else {
-				s.ChannelMessageSend(m.ChannelID, "**BirthdayBot Usage:**\n`!bd add <user> <dd/mm>` - add a new birthday to the database\n`!bd next` - see who is having their birthday next\n`!bd today` - check who is having their birthday today\n`!bd when <user>` - see a specific users birthday\n`!bd help` - see the abysmal help")
-			}
-		} else if len(command) == 3 {
-			if command[1] == "when" {
-				birthday, err := commands.CheckForUsersBirthdayInDatabase(BotConfig.DB, utils.RemoveChars(command[2], []string{"<", ">", "@", "!"}))
-				if err != nil {
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("error checking for users birthday %s", err.Error()))
-					return
-				}
-				if birthday == "" {
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>'s birthday not in database", command[2]))
-				} else {
-					bd, err := utils.ConvertYearDayToDate(birthday)
-					if err != nil {
-						s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error parsing birthday %s", birthday))
-					}
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s's birthday is the %s", command[2], bd))
-				}
-				println("user", command[2], "birthday =", birthday)
-			}
-		} else if len(command) == 2 {
-			if command[1] == "today" {
-				commands.CheckTodaysBirthdays(BotConfig.DB, s, m.ChannelID)
-			} else if command[1] == "next" {
-				err := commands.NextBirthday(BotConfig.DB, s, m.ChannelID)
-				if err != nil {
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("error getting next birthday %s", err.Error()))
-					return
-				}
-			} else if command[1] == "help" {
-				s.ChannelMessageSend(m.ChannelID, "**BirthdayBot Usage:**\n`!bd add <user> <dd/mm>` - add a new birthday to the database\n`!bd next` - see who is having their birthday next\n`!bd today` - check who is having their birthday today\n`!bd when <user>` - see a specific users birthday\n`!bd help` - see the abysmal help")
-			} else {
-				s.ChannelMessageSend(m.ChannelID, "**BirthdayBot Usage:**\n`!bd add <user> <dd/mm>` - add a new birthday to the database\n`!bd next` - see who is having their birthday next\n`!bd today` - check who is having their birthday today\n`!bd when <user>` - see a specific users birthday\n`!bd help` - see the abysmal help")
-			}
-		} else {
-			s.ChannelMessageSend(m.ChannelID, "**BirthdayBot Usage:**\n`!bd add <user> <dd/mm>` - add a new birthday to the database\n`!bd next` - see who is having their birthday next\n`!bd today` - check who is having their birthday today\n`!bd when <user>` - see a specific users birthday\n`!bd help` - see the abysmal help")
+		command, err := DiscordBot.ParseInput(m.Content)
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error parsing command: %s", err.Error()))
+			return
+		}
+		err = DiscordBot.ExecuteCommand(m.ChannelID, command)
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error executing command: %s", err.Error()))
+			return
 		}
 	}
 }
 
 func sendMessageInTimeInterval(s *discordgo.Session, _ *discordgo.Ready) {
 	_ = commands.SetupBirthdayDatabase(BotConfig.DB)
-	//wishHappyBirthday(BotConfig.DB, s)
+	//DiscordBot.WishTodaysHappyBirthdays()
 	ticker := time.NewTicker(1 * time.Hour)
 	quit := make(chan struct{})
 	go func() {
@@ -133,7 +93,7 @@ func sendMessageInTimeInterval(s *discordgo.Session, _ *discordgo.Ready) {
 			select {
 			case <-ticker.C:
 				if utils.InTimeInterval("08:00:00", "09:00:00", time.Now()) {
-					commands.WishHappyBirthday(BotConfig.DB, s, BotConfig)
+					DiscordBot.WishTodaysHappyBirthdays()
 				}
 			case <-quit:
 				ticker.Stop()

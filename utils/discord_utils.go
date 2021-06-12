@@ -2,8 +2,7 @@ package utils
 
 import "github.com/bwmarrin/discordgo"
 
-func IsUser(input string, s *discordgo.Session, serverID string) (b bool, id string) {
-	user := RemoveChars(input, []string{"<", ">", "@", "!"})
+func IsUser(user string, s *discordgo.Session, serverID string) (b bool, id string) {
 	_, err := s.GuildMember(serverID, user)
 
 	if err != nil {
@@ -11,4 +10,8 @@ func IsUser(input string, s *discordgo.Session, serverID string) (b bool, id str
 	}
 
 	return true, user
+}
+
+func GetIDFromMention(user string) string {
+	return RemoveChars(user, []string{"<", ">", "@", "!"})
 }
