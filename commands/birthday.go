@@ -17,6 +17,8 @@ import (
 	- (REMOVE THE UNNECESSARY UTILS)
 	- CLEAN UP FILES
 	- MAKE WORK ASYNCHRONOUSLY
+	- CREATE COMMONERRORS SORT OF THING SO ERRORS LOOK NICER
+	- MAKE FMT.PRINTF STUFF A PROPER LOG
 */
 
 type Birthday struct {
@@ -93,7 +95,7 @@ func (d *DiscordBot) ParseInput(input string) (command Command, err error) {
 	commandLength := len(cleanedSplitCommand)
 
 	if commandLength < 2 || commandLength > 4 {
-		err = fmt.Errorf("invalid length of command %w", err)
+		err = fmt.Errorf("invalid length of command: %s", input)
 		return
 	}
 

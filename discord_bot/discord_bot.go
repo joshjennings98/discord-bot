@@ -73,11 +73,13 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		command, err := DiscordBot.ParseInput(m.Content)
 		if err != nil {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error parsing command: %s", err.Error()))
+			DiscordBot.Help(m.ChannelID)
 			return
 		}
 		err = DiscordBot.ExecuteCommand(m.ChannelID, command)
 		if err != nil {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error executing command: %s", err.Error()))
+			DiscordBot.Help(m.ChannelID)
 			return
 		}
 	}
