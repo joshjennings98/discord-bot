@@ -41,8 +41,10 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		log.Errorf("Failed to start bot with error: %s", err)
 		os.Exit(1)
 	}
+	os.Exit(0)
 }
 
 func initCLI(ctx context.Context) (err error) {
@@ -55,8 +57,8 @@ func initCLI(ctx context.Context) (err error) {
 func init() {
 	rootCmd.Flags().StringP(Token, "t", "", "Bot token")
 	rootCmd.Flags().StringP(BirthdaysDB, "d", "", "Birthdays database")
-	rootCmd.Flags().StringP(Channel, "c", "", "Channel to send message on")
-	rootCmd.Flags().StringP(Server, "s", "", "Server to send message on")
+	rootCmd.Flags().StringP(Channel, "c", "", "Default channelID to send happy birthday message on")
+	rootCmd.Flags().StringP(Server, "s", "", "Server to send messages on (used for determining user validity)")
 
 	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_TOKEN", rootCmd.Flags().Lookup(Token))
 	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_BIRTHDAYS_DB", rootCmd.Flags().Lookup(BirthdaysDB))

@@ -10,15 +10,24 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/joshjennings98/discord-bot/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 /*
 	TODO:
+	- Fix how times are added
+	= Fix 29/02
+	- For NEXT thing add a date
+	- ADD TESTS
+	- ADD CI
+	- Make run on multiple servers
+	- add timezones
+	- change birthday with to `@everyone, it is @user's birthday today :party_face:`
+	- make the message customisable
 	- (REMOVE THE UNNECESSARY UTILS)
-	- CLEAN UP FILES
+	- CLEAN UP FILES (move databse stuff to new file.)
 	- MAKE WORK ASYNCHRONOUSLY
 	- CREATE COMMONERRORS SORT OF THING SO ERRORS LOOK NICER
-	- MAKE FMT.PRINTF STUFF A PROPER LOG
 */
 
 type Birthday struct {
@@ -40,9 +49,11 @@ func (a Birthdays) Swap(i, j int) {
 }
 
 type Command struct {
-	Action string
-	UserID string
-	Date   time.Time
+	Action  string
+	UserID  string
+	Date    time.Time
+	Channel string
+	// When running on multiple servers then we also need a serverID
 }
 
 type DiscordBot struct {
@@ -50,16 +61,24 @@ type DiscordBot struct {
 	session *discordgo.Session
 }
 
+var validActions = map[string]func(*DiscordBot, *Command){
+	"add":   (*DiscordBot).AddBirthday,
+	"next":  (*DiscordBot).NextBirthday,
+	"when":  (*DiscordBot).WhenBirthday,
+	"today": (*DiscordBot).TodaysBirthdays,
+	"help":  (*DiscordBot).Help,
+}
+
 type IDiscordBot interface {
 	SetupDiscordBot(cfg BotConfiguration, session *discordgo.Session)
 	ParseInput(input string) (command Command, err error)
-	ExecuteCommand(command Command) (err error)
+	ExecuteCommand(command Command)
 	WishTodaysHappyBirthdays()
-	TodaysBirthdays(channelID string)
-	NextBirthday(channelID string)
-	AddBirthday(channelID, id string, date time.Time)
-	WhenBirthday(channelID, id string)
-	Help(channelID string)
+	TodaysBirthdays(command *Command)
+	NextBirthday(command *Command)
+	AddBirthday(command *Command)
+	WhenBirthday(command *Command)
+	Help(command *Command)
 }
 
 func (d *DiscordBot) SetupDiscordBot(cfg BotConfiguration, session *discordgo.Session) {
@@ -67,20 +86,36 @@ func (d *DiscordBot) SetupDiscordBot(cfg BotConfiguration, session *discordgo.Se
 	d.session = session
 }
 
-func (d *DiscordBot) ExecuteCommand(channelID string, command Command) (err error) {
+func (d *DiscordBot) ExecuteCommand(channelID string, input string) {
+	command, err := d.ParseInput(input)
+	if err != nil {
+		message := fmt.Sprintf("Error parsing command: %s", err.Error())
+		utils.LogAndSend(d.session, channelID, message, err)
+		return
+	}
+	// set correct channel to execute command on
+	command.Channel = channelID
 	switch command.Action {
 	case "add":
-		d.AddBirthday(channelID, command.UserID, command.Date)
+		d.AddBirthday(&command)
 	case "when":
-		d.WhenBirthday(channelID, command.UserID)
+		d.WhenBirthday(&command)
 	case "next":
-		d.NextBirthday(channelID)
+		d.NextBirthday(&command)
 	case "today":
-		d.TodaysBirthdays(channelID)
+		d.TodaysBirthdays(&command)
 	case "help":
-		d.Help(channelID)
+		d.Help(&command)
 	}
-	return
+}
+
+func isValidAction(action string) bool {
+	for validAction := range validActions {
+		if validAction == action {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *DiscordBot) ParseInput(input string) (command Command, err error) {
@@ -99,7 +134,13 @@ func (d *DiscordBot) ParseInput(input string) (command Command, err error) {
 		return
 	}
 
-	command.Action = cleanedSplitCommand[1]
+	action := cleanedSplitCommand[1]
+	if isValidAction(action) {
+		command.Action = action
+	} else {
+		err = fmt.Errorf("invalid action %s", action)
+		return
+	}
 
 	if commandLength > 2 {
 		user := utils.GetIDFromMention(cleanedSplitCommand[2])
@@ -141,9 +182,10 @@ func CheckForBirthdaysInDatabase(database string, t time.Time) (birthdays []stri
 		return nil, fmt.Errorf("could not open db, %v", err)
 	}
 	defer db.Close()
+
 	birthdays = []string{}
 	date := strconv.Itoa(t.YearDay())
-	println("Checking for today's birthdays")
+	log.Info("Checking for today's birthdays")
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS"))
 		b.ForEach(func(k, v []byte) error {
@@ -163,7 +205,8 @@ func CheckForUsersBirthdayInDatabase(database, userID string) (birthday string, 
 		return "", fmt.Errorf("could not open db, %v", err)
 	}
 	defer db.Close()
-	println("Checking for today's birthdays")
+
+	log.Info("Checking for today's birthdays")
 	err = db.View(func(tx *bolt.Tx) error {
 		birthday = string(tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Get([]byte(userID)))
 		return nil
@@ -177,6 +220,7 @@ func AddBirthdayToDatabase(database, id string, date time.Time) error {
 		return fmt.Errorf("could not open db, %v", err)
 	}
 	defer db.Close()
+
 	dateString := strconv.Itoa(date.YearDay())
 	err = db.Update(func(tx *bolt.Tx) error {
 		err := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Put([]byte(id), []byte(dateString))
@@ -185,7 +229,7 @@ func AddBirthdayToDatabase(database, id string, date time.Time) error {
 		}
 		return nil
 	})
-	fmt.Printf("Added Birthday for %s on %s %d\n", id, date.Month().String(), date.Day())
+	log.Info(fmt.Sprintf("Added Birthday for %s on %s %d\n", id, date.Month().String(), date.Day()))
 	return err
 }
 
@@ -213,6 +257,7 @@ func SetupBirthdayDatabase(database string) (err error) {
 		return fmt.Errorf("could not open db, %v", err)
 	}
 	defer db.Close()
+
 	err = db.Update(func(tx *bolt.Tx) error {
 		root, err := tx.CreateBucketIfNotExists([]byte("DB"))
 		if err != nil {
@@ -227,45 +272,52 @@ func SetupBirthdayDatabase(database string) (err error) {
 	if err != nil {
 		return fmt.Errorf("could not set up buckets, %v", err)
 	}
-	fmt.Println("DB Setup Done")
+	log.Info("Database Setup Done")
 	return nil
-}
-
-func (d *DiscordBot) AddBirthday(channelID, id string, date time.Time) {
-	err := AddBirthdayToDatabase(d.cfg.DB, id, date)
-	if err != nil {
-		d.session.ChannelMessageSend(channelID, fmt.Sprintf("error adding birthday to database: %s", err.Error()))
-		return
-	}
-	d.session.ChannelMessageSend(channelID, fmt.Sprintf("Successfully added birthday for <@!%s> on %s %d", id, date.Month().String(), date.Day()))
 }
 
 func (d *DiscordBot) WishTodaysHappyBirthdays() {
 	birthdays, _ := CheckForBirthdaysInDatabase(d.cfg.DB, time.Now())
 	for _, b := range birthdays {
-		d.session.ChannelMessageSend(d.cfg.Channel, fmt.Sprintf("Happy Birthday <@%s>!!! :partying_face:", b))
+		message := fmt.Sprintf("Happy Birthday <@%s>!!! :partying_face:", b)
+		utils.LogAndSend(d.session, d.cfg.Channel, message, nil)
 	}
 }
 
-func (d *DiscordBot) TodaysBirthdays(channelID string) {
+func (d *DiscordBot) AddBirthday(command *Command) {
+	err := AddBirthdayToDatabase(d.cfg.DB, command.UserID, command.Date)
+	if err != nil {
+		message := fmt.Sprintf("error adding birthday to database: %s", err.Error())
+		utils.LogAndSend(d.session, command.Channel, message, err)
+		return
+	}
+	message := fmt.Sprintf("Successfully added birthday for <@!%s> on %s %d", command.UserID, command.Date.Month().String(), command.Date.Day())
+	utils.LogAndSend(d.session, command.Channel, message, nil)
+}
+
+func (d *DiscordBot) TodaysBirthdays(command *Command) {
 	birthdays, _ := CheckForBirthdaysInDatabase(d.cfg.DB, time.Now())
+	var message string
 	for _, b := range birthdays {
-		d.session.ChannelMessageSend(channelID, fmt.Sprintf("<@%s> has their birthday today :smile:", b))
+		message = fmt.Sprintf("<@%s> has their birthday today :smile:", b)
 	}
 	if len(birthdays) == 0 {
-		d.session.ChannelMessageSend(channelID, "Nobody has their birthday today :cry:")
+		message = "Nobody has their birthday today :cry:"
 	}
+	utils.LogAndSend(d.session, command.Channel, message, nil)
 }
 
-func (d *DiscordBot) NextBirthday(channelID string) {
+func (d *DiscordBot) NextBirthday(command *Command) {
 	today := time.Now().YearDay()
 	birthdays, err := GetBirthdaysFromDatabase(d.cfg.DB)
 	if err != nil {
-		d.session.ChannelMessageSend(channelID, fmt.Sprintf("Error getting birthdays from database: %s", err.Error()))
+		message := fmt.Sprintf("Error getting birthdays from database: %s", err.Error())
+		utils.LogAndSend(d.session, command.Channel, message, err)
 		return
 	}
 	if len(birthdays) == 0 {
-		d.session.ChannelMessageSend(channelID, "There are no birthdays in the database.")
+		message := "There are no birthdays in the database."
+		utils.LogAndSend(d.session, command.Channel, message, nil)
 		return
 	}
 	sort.Sort(birthdays) // sort by date
@@ -277,7 +329,8 @@ func (d *DiscordBot) NextBirthday(channelID string) {
 	for i, birthday := range birthdays {
 		date, err := strconv.Atoi(birthday.Date)
 		if err != nil {
-			d.session.ChannelMessageSend(channelID, fmt.Sprintf("Error parsing birthday: %s", err.Error()))
+			message := fmt.Sprintf("Error parsing birthday: %s", err.Error())
+			utils.LogAndSend(d.session, command.Channel, message, err)
 			return
 		}
 		// to reduce logic for wrap around
@@ -286,31 +339,39 @@ func (d *DiscordBot) NextBirthday(channelID string) {
 			firstBirthdayID = birthday.ID
 		}
 		if date > today {
-			d.session.ChannelMessageSend(channelID, fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", birthday.ID, (date-today)))
+			message := fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", birthday.ID, (date - today))
+			utils.LogAndSend(d.session, command.Channel, message, nil)
 			return
 		}
 	}
 	// catch any dates that have wrapped round (will only reach if no birthdays after today)
-	d.session.ChannelMessageSend(channelID, fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", firstBirthdayID, (utils.DaysInThisYear()-today+firstBirthdayDate)))
+	message := fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", firstBirthdayID, (utils.DaysInThisYear() - today + firstBirthdayDate))
+	utils.LogAndSend(d.session, command.Channel, message, nil)
 }
 
-func (d *DiscordBot) WhenBirthday(channelID, id string) {
-	birthday, err := CheckForUsersBirthdayInDatabase(d.cfg.DB, id)
+func (d *DiscordBot) WhenBirthday(command *Command) {
+	var message string
+	birthday, err := CheckForUsersBirthdayInDatabase(d.cfg.DB, command.UserID)
 	if err != nil {
-		d.session.ChannelMessageSend(channelID, fmt.Sprintf("error checking for users birthday <@%s:>", err.Error()))
+		message := fmt.Sprintf("error checking for users birthday <@%s:>", err.Error())
+		utils.LogAndSend(d.session, command.Channel, message, err)
 		return
 	}
 	if birthday == "" {
-		d.session.ChannelMessageSend(channelID, fmt.Sprintf("<@%s>'s birthday not in database", id))
+		message = fmt.Sprintf("<@%s>'s birthday not in database", command.UserID)
 	} else {
 		bd, err := utils.ConvertYearDayToDate(birthday)
 		if err != nil {
-			d.session.ChannelMessageSend(channelID, fmt.Sprintf("Error parsing birthday <@%s>:", birthday))
+			message := fmt.Sprintf("Error parsing birthday <@%s>:", birthday)
+			utils.LogAndSend(d.session, command.Channel, message, err)
+			return
 		}
-		d.session.ChannelMessageSend(channelID, fmt.Sprintf("<@%s>'s birthday is the %s", id, bd))
+		message = fmt.Sprintf("<@%s>'s birthday is the %s", command.UserID, bd)
 	}
+	utils.LogAndSend(d.session, command.Channel, message, nil)
 }
 
-func (d *DiscordBot) Help(channelID string) {
-	d.session.ChannelMessageSend(channelID, "**BirthdayBot Usage:**\n`!bd add <user> <dd/mm>` - add a new birthday to the database\n`!bd next` - see who is having their birthday next\n`!bd today` - check who is having their birthday today\n`!bd when <user>` - see a specific users birthday\n`!bd help` - see the abysmal help")
+func (d *DiscordBot) Help(command *Command) {
+	help := "**BirthdayBot Usage:**\n`!bd add <user> <dd/mm>` - add a new birthday to the database\n`!bd next` - see who is having their birthday next\n`!bd today` - check who is having their birthday today\n`!bd when <user>` - see a specific users birthday\n`!bd help` - see the abysmal help"
+	utils.LogAndSend(d.session, command.Channel, help, nil)
 }
