@@ -111,7 +111,10 @@ func RemoveChars(s string, chars []string) (newS string) {
 	return
 }
 
-func InTimeInterval(startTime, endTime string, timeToCheck time.Time) bool {
+func InHourInterval(n int, timeToCheck time.Time) bool {
+	startTime := fmt.Sprintf("%s:00:00", appendZero(n))
+	endTime := fmt.Sprintf("%s:00:00", appendZero(n+1))
+
 	start, err := time.Parse(SimpleTime, startTime)
 	if err != nil {
 		return false

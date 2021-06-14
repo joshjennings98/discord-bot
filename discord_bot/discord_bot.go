@@ -2,9 +2,11 @@ package discord_bot
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -35,12 +37,12 @@ func StartBot() (err error) {
 	}
 	defer dg.Close()
 	dg.AddHandler(messageCreate)
-	dg.AddHandler(sendMessageInTimeInterval)
+	dg.AddHandler(onReady)
 	// We only care about receiving message events.
 	dg.Identify.Intents = discordgo.IntentsGuildMessages
 
-	// Set up DiscordBot
-	DiscordBot.SetupDiscordBot(BotConfig, dg)
+	// Attach DiscordBot to session
+	DiscordBot.AttachBotToSession(dg)
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
@@ -72,32 +74,52 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			log.Info(fmt.Sprintf("DiscordBot mentioned in message: '%s'", m.Content))
 			// Check for someone saying hi
 			if hiRegex.MatchString(strings.ToLower(m.Content)) {
-				utils.LogAndSend(s, m.ChannelID, fmt.Sprintf("Hello %s", m.Author.Mention()), nil)
+				utils.LogAndSend(s, m.ChannelID, m.GuildID, fmt.Sprintf("Hello %s", m.Author.Mention()), nil)
 			}
 			// Check for someone saying thank you
 			if tyRegex.MatchString(strings.ToLower(m.Content)) {
-				utils.LogAndSend(s, m.ChannelID, fmt.Sprintf("You are welcome %s", m.Author.Mention()), nil)
+				utils.LogAndSend(s, m.ChannelID, m.GuildID, fmt.Sprintf("You are welcome %s", m.Author.Mention()), nil)
 			}
 		}
 	}
 
 	// Check for prefix
 	if strings.HasPrefix(m.Content, prefixCmd) {
-		DiscordBot.ExecuteCommand(m.ChannelID, m.Content)
+		DiscordBot.ExecuteCommand(m)
 	}
 }
 
-func sendMessageInTimeInterval(s *discordgo.Session, _ *discordgo.Ready) {
-	_ = commands.SetupBirthdayDatabase(BotConfig.DB)
-	//DiscordBot.WishTodaysHappyBirthdays()
+func onReady(s *discordgo.Session, _ *discordgo.Ready) {
 	ticker := time.NewTicker(1 * time.Hour)
 	quit := make(chan struct{})
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-				if utils.InTimeInterval("08:00:00", "09:00:00", time.Now()) {
-					DiscordBot.WishTodaysHappyBirthdays()
+				databases, err := ioutil.ReadDir("./databases")
+				if err != nil {
+					log.Errorf("Could not find databases")
+				}
+				for _, db := range databases {
+					tz, err := commands.GetTimezone(db.Name())
+					if err != nil {
+						log.Error(fmt.Sprintf("Could not get timezone from database %s", db.Name()))
+					}
+					loc, err := time.LoadLocation(tz)
+					if err != nil {
+						log.Errorf("Invalid location '%s'", loc)
+					}
+					interval, err := commands.GetTimeInterval(db.Name())
+					if err != nil {
+						log.Errorf("Could not get time interval from database '%s'", db.Name())
+					}
+					i, err := strconv.Atoi(interval)
+					if err != nil {
+						log.Errorf("Invalid interval '%s'", interval)
+					}
+					if utils.InHourInterval(i, time.Now().In(loc)) {
+						commands.WishTodaysHappyBirthdays(s, db.Name())
+					}
 				}
 			case <-quit:
 				ticker.Stop()

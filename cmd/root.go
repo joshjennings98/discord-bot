@@ -56,14 +56,8 @@ func initCLI(ctx context.Context) (err error) {
 
 func init() {
 	rootCmd.Flags().StringP(Token, "t", "", "Bot token")
-	rootCmd.Flags().StringP(BirthdaysDB, "d", "", "Birthdays database")
-	rootCmd.Flags().StringP(Channel, "c", "", "Default channelID to send happy birthday message on")
-	rootCmd.Flags().StringP(Server, "s", "", "Server to send messages on (used for determining user validity)")
 
 	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_TOKEN", rootCmd.Flags().Lookup(Token))
-	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_BIRTHDAYS_DB", rootCmd.Flags().Lookup(BirthdaysDB))
-	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_CHANNEL", rootCmd.Flags().Lookup(Channel))
-	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_SERVER", rootCmd.Flags().Lookup(Server))
 }
 
 func RunCLI(ctx context.Context) error {

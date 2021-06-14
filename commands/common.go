@@ -6,10 +6,10 @@ import (
 )
 
 type BotConfiguration struct {
-	Token   string `mapstructure:"token"`
-	DB      string `mapstructure:"birthdays_db"`
-	Channel string `mapstructure:"channel"`
-	Server  string `mapstructure:"server"`
+	Token string `mapstructure:"token"`
+	//DB      string `mapstructure:"birthdays_db"`
+	//Channel string `mapstructure:"channel"`
+	//Server  string `mapstructure:"server"`
 }
 
 func (cfg *BotConfiguration) Validate() error {
@@ -21,17 +21,17 @@ func (cfg *BotConfiguration) Validate() error {
 
 	return validation.ValidateStruct(cfg,
 		validation.Field(&cfg.Token, validation.Required),
-		validation.Field(&cfg.DB, validation.Required),
-		validation.Field(&cfg.Channel, validation.Required),
-		validation.Field(&cfg.Server, validation.Required),
+		//validation.Field(&cfg.DB, validation.Required),
+		//validation.Field(&cfg.Channel, validation.Required),
+		//validation.Field(&cfg.Server, validation.Required),
 	)
 }
 
 func DefaultBotConfig() *BotConfiguration {
 	return &BotConfiguration{
-		Token:   "",
-		DB:      "",
-		Channel: "",
-		Server:  "",
+		Token: "",
+		//DB:      "",
+		//Channel: "",
+		//Server:  "",
 	}
 }
