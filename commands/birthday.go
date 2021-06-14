@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -232,6 +233,10 @@ func (d *DiscordBot) ParseInput(m *discordgo.MessageCreate) (command Command, er
 
 func CheckForBirthdaysInDatabase(database string, t time.Time) (birthdays []string, err error) {
 	path := "databases/" + database
+	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
+		err = fmt.Errorf("database doesn't exist, please run setup")
+		return
+	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not open db, %v", err)
@@ -260,6 +265,10 @@ func CheckForBirthdaysInDatabase(database string, t time.Time) (birthdays []stri
 
 func CheckForUsersBirthdayInDatabase(database, userID string) (birthday time.Time, err error) {
 	path := "databases/" + database
+	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
+		err = fmt.Errorf("database doesn't exist, please run setup")
+		return
+	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return time.Unix(0, 0), fmt.Errorf("could not open db, %v", err)
@@ -279,8 +288,12 @@ func CheckForUsersBirthdayInDatabase(database, userID string) (birthday time.Tim
 	return
 }
 
-func AddBirthdayToDatabase(database, id string, date time.Time) error {
+func AddBirthdayToDatabase(database, id string, date time.Time) (err error) {
 	path := "databases/" + database
+	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
+		err = fmt.Errorf("database doesn't exist, please run setup")
+		return
+	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return fmt.Errorf("could not open db, %v", err)
@@ -301,6 +314,11 @@ func AddBirthdayToDatabase(database, id string, date time.Time) error {
 
 func GetBirthdaysFromDatabase(database string) (birthdays Birthdays, err error) {
 	path := "databases/" + database
+	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
+		err = fmt.Errorf("database doesn't exist, please run setup")
+		return
+	}
+
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return birthdays, fmt.Errorf("could not open db, %v", err)
@@ -362,6 +380,10 @@ func SetupBirthdayDatabase(database, defaultChannel, timezone, server, interval 
 
 func GetDefaultChannel(database string) (channel string, err error) {
 	path := "databases/" + database
+	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
+		err = fmt.Errorf("database doesn't exist, please run setup")
+		return
+	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return "", fmt.Errorf("could not open db, %v", err)
@@ -378,6 +400,10 @@ func GetDefaultChannel(database string) (channel string, err error) {
 
 func GetServerID(database string) (server string, err error) {
 	path := "databases/" + database
+	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
+		err = fmt.Errorf("database doesn't exist, please run setup")
+		return
+	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return "", fmt.Errorf("could not open db, %v", err)
@@ -394,6 +420,10 @@ func GetServerID(database string) (server string, err error) {
 
 func GetTimezone(database string) (tz string, err error) {
 	path := "databases/" + database
+	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
+		err = fmt.Errorf("database doesn't exist, please run setup")
+		return
+	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return "", fmt.Errorf("could not open db, %v", err)
@@ -410,6 +440,10 @@ func GetTimezone(database string) (tz string, err error) {
 
 func GetTimeInterval(database string) (interval string, err error) {
 	path := "databases/" + database
+	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
+		err = fmt.Errorf("database doesn't exist, please run setup")
+		return
+	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return "", fmt.Errorf("could not open db, %v", err)
