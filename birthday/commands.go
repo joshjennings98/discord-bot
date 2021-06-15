@@ -14,19 +14,13 @@ import (
 
 /*
 	TODO:
-	- Fix how times are added
-	- Fix 29/02
 	- For NEXT thing add a date
 	- Switch to proper / commands instead of checking every message?
 	- Remove non-birthday stuff (like the hi and ty stuff)?????
 	- ADD TESTS
 	- ADD CI
 	- Add locks to database checking
-	- Make run on multiple servers
-	- add timezones
-	- base timezone on the servers timezone (this needs to be set up when the bot is added (default to GMT))
 	- change birthday with to `@everyone, it is @user's birthday today :party_face:`
-	- make the message customisable
 	- (REMOVE THE UNNECESSARY UTILS)
 	- CLEAN UP FILES (move databse stuff to new file.)
 	- MAKE WORK ASYNCHRONOUSLY
@@ -193,7 +187,7 @@ func (d *DiscordBot) AddBirthday(command *Command) {
 		utils.LogAndSend(d.session, command.Channel, command.Server, message, err)
 		return
 	}
-	message := fmt.Sprintf("Successfully added birthday for <@!%s> on %s %d", id, datetime.Month().String(), datetime.Day())
+	message := fmt.Sprintf("Successfully added birthday for <@!%s> on %s %s", id, datetime.Month(), utils.AddNumSuffix(datetime.Day()))
 	utils.LogAndSend(d.session, command.Channel, command.Server, message, nil)
 }
 
@@ -225,7 +219,7 @@ func (d *DiscordBot) NextBirthday(command *Command) {
 	sort.Sort(birthdays) // sort by date
 
 	// These are for if we need to wrap around with birthdays. We keep track of the first birthday to reduce amount of parsing
-	var firstBirthdayDate int
+	var firstBirthdayDate time.Time
 	var firstBirthdayID string
 
 	for i, birthday := range birthdays {
@@ -235,20 +229,21 @@ func (d *DiscordBot) NextBirthday(command *Command) {
 			utils.LogAndSend(d.session, command.Channel, command.Server, message, err)
 			return
 		}
-		date := int(time.Unix(date64, 0).YearDay())
+		t := time.Unix(date64, 0)
+		date := int(t.YearDay())
 		// to reduce logic for wrap around
 		if i == 0 {
-			firstBirthdayDate = date
+			firstBirthdayDate = t
 			firstBirthdayID = birthday.ID
 		}
 		if date > today {
-			message := fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", birthday.ID, (date - today))
+			message := fmt.Sprintf("The next person to have their birthday is <@%s> in %d days on %s %s.", birthday.ID, (date - today), t.Month(), utils.AddNumSuffix(t.Day()))
 			utils.LogAndSend(d.session, command.Channel, command.Server, message, nil)
 			return
 		}
 	}
 	// catch any dates that have wrapped round (will only reach if no birthdays after today)
-	message := fmt.Sprintf("The next person to have their birthday is <@%s> in %d days.", firstBirthdayID, (utils.DaysInThisYear() - today + firstBirthdayDate))
+	message := fmt.Sprintf("The next person to have their birthday is <@%s> in %d dayson %s %s.", firstBirthdayID, (utils.DaysInThisYear() - today + int(firstBirthdayDate.YearDay())), firstBirthdayDate.Month(), utils.AddNumSuffix(firstBirthdayDate.Day()))
 	utils.LogAndSend(d.session, command.Channel, command.Server, message, nil)
 }
 
@@ -270,7 +265,7 @@ func (d *DiscordBot) WhenBirthday(command *Command) {
 	if birthday == time.Unix(0, 0) {
 		message = fmt.Sprintf("<@%s>'s birthday not in database", id)
 	} else {
-		message = fmt.Sprintf("<@%s>'s birthday is the %s %d", id, birthday.Month(), birthday.Day())
+		message = fmt.Sprintf("<@%s>'s birthday is on %s %s", id, birthday.Month(), utils.AddNumSuffix(birthday.Day()))
 	}
 	utils.LogAndSend(d.session, command.Channel, command.Server, message, nil)
 }

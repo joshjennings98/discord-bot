@@ -205,3 +205,16 @@ func Contains(arr interface{}, elem interface{}) bool {
 	}
 	return false
 }
+
+func AddNumSuffix(i int) string {
+	switch i % 10 {
+	case 1:
+		return fmt.Sprintf("%dst", i)
+	case 2:
+		return fmt.Sprintf("%dnd", i)
+	case 3:
+		return fmt.Sprintf("%drd", i)
+	default:
+		return fmt.Sprintf("%dth", i)
+	}
+}
