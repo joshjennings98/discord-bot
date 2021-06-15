@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/joshjennings98/discord-bot/commands"
+	commands "github.com/joshjennings98/discord-bot/birthday"
 	bot "github.com/joshjennings98/discord-bot/discord_bot"
 	"github.com/joshjennings98/discord-bot/utils"
 	log "github.com/sirupsen/logrus"
@@ -15,10 +15,7 @@ import (
 const (
 	app = "discord_bot"
 	// CLI flags
-	Token       = "token"
-	BirthdaysDB = "birthdays_db"
-	Channel     = "channel"
-	Server      = "server"
+	Token = "token"
 )
 
 var (
@@ -27,8 +24,14 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "discord-bot",
-	Short: "TODO",
-	Long:  `TODO`,
+	Short: "Discord birthday bot.",
+	Long: `This is the birthday discord bot (BirthdayBot3000).
+
+Environment variables can be used instead of cli arguments. CLI arguments will take precedence.
+
+Environment Variables:
+	DISCORD_BOT_TOKEN string Bot token
+`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 		if err := RunCLI(ctx); err != nil {

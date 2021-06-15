@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/joshjennings98/discord-bot/commands"
+	commands "github.com/joshjennings98/discord-bot/birthday"
 	"github.com/joshjennings98/discord-bot/utils"
 	log "github.com/sirupsen/logrus"
 )
