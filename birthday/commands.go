@@ -32,7 +32,7 @@ import (
 var validActions = map[string]func(*DiscordBot, *Command){
 	"add":   (*DiscordBot).AddBirthday,     // add <user> <date>
 	"next":  (*DiscordBot).NextBirthday,    // next
-	"when":  (*DiscordBot).WhenBirthday,    // when
+	"when":  (*DiscordBot).WhenBirthday,    // when <user>
 	"today": (*DiscordBot).TodaysBirthdays, // today
 	"setup": (*DiscordBot).StartDiscordBot, // setup <timezone> <time>
 	"help":  (*DiscordBot).Help,            // help
@@ -66,6 +66,11 @@ func (d *DiscordBot) AttachBotToSession(session *discordgo.Session, databaseDir 
 }
 
 func (d *DiscordBot) StartDiscordBot(command *Command) {
+	if command.ID == "" || command.DateTime == "" {
+		message := "Error parsing command: command must be in the form '!bd <action> <arg1> <arg2>'"
+		utils.LogAndSend(d.session, command.Channel, command.Server, message, nil)
+		return
+	}
 	tz := command.ID
 	_, err := time.LoadLocation(tz)
 	if err != nil {
@@ -167,6 +172,11 @@ func WishTodaysHappyBirthdays(s *discordgo.Session, database string) {
 }
 
 func (d *DiscordBot) AddBirthday(command *Command) {
+	if command.ID == "" || command.DateTime == "" {
+		message := "Error parsing command: command must be in the form '!bd <action> <arg1> <arg2>'"
+		utils.LogAndSend(d.session, command.Channel, command.Server, message, nil)
+		return
+	}
 	user := utils.GetIDFromMention(command.ID)
 	b, id := utils.IsUser(user, d.session, command.Server)
 	if !b {
@@ -248,6 +258,11 @@ func (d *DiscordBot) NextBirthday(command *Command) {
 }
 
 func (d *DiscordBot) WhenBirthday(command *Command) {
+	if command.ID == "" {
+		message := "Error parsing command: command must be in the form '!bd <action> <arg1> <arg2>'"
+		utils.LogAndSend(d.session, command.Channel, command.Server, message, nil)
+		return
+	}
 	user := utils.GetIDFromMention(command.ID)
 	b, id := utils.IsUser(user, d.session, command.Server)
 	if !b {
