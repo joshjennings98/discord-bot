@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	SimpleTime = "15:04:05"
+	SimpleTimeFormat = "15:04:05"
+	FullDateFormat   = "02/01/06 03:04:05 PM"
 )
 
 type Validator interface {
@@ -113,18 +114,18 @@ func RemoveChars(s string, chars []string) (newS string) {
 }
 
 func InHourInterval(n int, timeToCheck time.Time) bool {
-	startTime := fmt.Sprintf("%s:00:00", appendZero(n))
-	endTime := fmt.Sprintf("%s:00:00", appendZero(n+1))
+	startTime := fmt.Sprintf("%s:00:00", AppendZero(n))
+	endTime := fmt.Sprintf("%s:00:00", AppendZero(n+1))
 
-	start, err := time.Parse(SimpleTime, startTime)
+	start, err := time.Parse(SimpleTimeFormat, startTime)
 	if err != nil {
 		return false
 	}
-	end, err := time.Parse(SimpleTime, endTime)
+	end, err := time.Parse(SimpleTimeFormat, endTime)
 	if err != nil {
 		return false
 	}
-	check, err := time.Parse(SimpleTime, timeToCheck.Format(SimpleTime))
+	check, err := time.Parse(SimpleTimeFormat, timeToCheck.Format(SimpleTimeFormat))
 	if err != nil {
 		return false
 	}
@@ -148,7 +149,7 @@ type Month struct {
 	Days int
 }
 
-func appendZero(i int) string {
+func AppendZero(i int) string {
 	if i < 10 {
 		return fmt.Sprintf("0%d", i)
 	}

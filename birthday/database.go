@@ -23,11 +23,11 @@ func CheckForBirthdaysInDatabase(database string, t time.Time) (birthdays []stri
 	log.Info("Checking for today's birthdays")
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS"))
-		b.ForEach(func(k, v []byte) (err1 error) {
+		b.ForEach(func(k, v []byte) error {
 			i, err1 := strconv.ParseInt(string(v), 10, 64)
 			if err1 != nil {
 				err = commonerrors.ErrCannotParse
-				return
+				return nil
 			}
 			if time.Unix(i, 0).YearDay() == date {
 				birthdays = append(birthdays, string(k))
@@ -50,14 +50,14 @@ func CheckForUsersBirthdayInDatabase(database, userID string) (birthday time.Tim
 	err = db.View(func(tx *bolt.Tx) error {
 		bd := string(tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Get([]byte(userID)))
 		if bd == "" {
-			err = commonerrors.ErrIDNotInDatabase
-			return err
+			birthday = time.Unix(0, 0)
+			return nil
 		}
-		i, err := strconv.ParseInt(bd, 10, 64)
+		epoch, err := strconv.ParseInt(bd, 10, 64)
 		if err != nil {
 			return commonerrors.ErrCannotParse
 		}
-		birthday = time.Unix(i, 0)
+		birthday = time.Unix(epoch, 0)
 		return nil
 	})
 	return
@@ -72,9 +72,10 @@ func AddBirthdayToDatabase(database, id string, date time.Time) (err error) {
 
 	dateString := strconv.FormatInt(date.Unix(), 10)
 	err = db.Update(func(tx *bolt.Tx) error {
-		err := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Put([]byte(id), []byte(dateString))
-		if err != nil {
-			return commonerrors.ErrCannotInsertIntoDB
+		err1 := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Put([]byte(id), []byte(dateString))
+		if err1 != nil {
+			err = commonerrors.ErrCannotInsertIntoDB
+			return nil
 		}
 		return nil
 	})
@@ -91,11 +92,11 @@ func GetBirthdaysFromDatabase(database string) (birthdays Birthdays, err error) 
 
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS"))
-		b.ForEach(func(k, v []byte) (err error) {
+		b.ForEach(func(k, v []byte) error {
 			numSecondsSince1970, err1 := strconv.ParseInt(string(v), 10, 64)
 			if err1 != nil {
 				err = commonerrors.ErrCannotParse
-				return
+				return nil
 			}
 			birthdays = append(birthdays, Birthday{ID: string(k), Date: time.Unix(numSecondsSince1970, 0)})
 			return nil
@@ -172,9 +173,10 @@ func openDatabase(database string, mode os.FileMode, options *bolt.Options) (db 
 }
 
 func getFromDatabase(database, key string) (value string, err error) {
-	db, err := openDatabase(database, 0600, nil)
-	if err != nil {
-		return "", commonerrors.ErrCannotOpenDatabase
+	db, err1 := openDatabase(database, 0600, nil)
+	if err1 != nil {
+		err = commonerrors.ErrCannotOpenDatabase
+		return
 	}
 	defer db.Close()
 
