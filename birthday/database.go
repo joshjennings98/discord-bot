@@ -7,32 +7,29 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	commonerrors "github.com/joshjennings98/discord-bot/errors"
 	log "github.com/sirupsen/logrus"
 )
 
 func CheckForBirthdaysInDatabase(database string, t time.Time) (birthdays []string, err error) {
-	path := "databases/" + database
-	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
-		err = fmt.Errorf("database doesn't exist, please run setup")
-		return
-	}
-	db, err := bolt.Open(path, 0600, nil)
+	db, err := openDatabase(database, 0600, nil)
 	if err != nil {
-		return nil, fmt.Errorf("could not open db, %v", err)
+		return nil, commonerrors.ErrCannotOpenDatabase
 	}
 	defer db.Close()
 
 	birthdays = []string{}
-	date := strconv.Itoa(t.YearDay())
+	date := t.YearDay()
 	log.Info("Checking for today's birthdays")
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS"))
 		b.ForEach(func(k, v []byte) (err1 error) {
 			i, err1 := strconv.ParseInt(string(v), 10, 64)
 			if err1 != nil {
+				err = commonerrors.ErrCannotParse
 				return
 			}
-			if strconv.Itoa(time.Unix(i, 0).YearDay()) == date {
+			if time.Unix(i, 0).YearDay() == date {
 				birthdays = append(birthdays, string(k))
 			}
 			return nil
@@ -43,14 +40,9 @@ func CheckForBirthdaysInDatabase(database string, t time.Time) (birthdays []stri
 }
 
 func CheckForUsersBirthdayInDatabase(database, userID string) (birthday time.Time, err error) {
-	path := "databases/" + database
-	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
-		err = fmt.Errorf("database doesn't exist, please run setup")
-		return
-	}
-	db, err := bolt.Open(path, 0600, nil)
+	db, err := openDatabase(database, 0600, nil)
 	if err != nil {
-		return time.Unix(0, 0), fmt.Errorf("could not open db, %v", err)
+		return time.Unix(0, 0), commonerrors.ErrCannotOpenDatabase
 	}
 	defer db.Close()
 
@@ -58,12 +50,12 @@ func CheckForUsersBirthdayInDatabase(database, userID string) (birthday time.Tim
 	err = db.View(func(tx *bolt.Tx) error {
 		bd := string(tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Get([]byte(userID)))
 		if bd == "" {
-			err = fmt.Errorf("ID not in database: %s", userID)
+			err = commonerrors.ErrIDNotInDatabase
 			return err
 		}
 		i, err := strconv.ParseInt(bd, 10, 64)
 		if err != nil {
-			return err
+			return commonerrors.ErrCannotParse
 		}
 		birthday = time.Unix(i, 0)
 		return nil
@@ -72,14 +64,9 @@ func CheckForUsersBirthdayInDatabase(database, userID string) (birthday time.Tim
 }
 
 func AddBirthdayToDatabase(database, id string, date time.Time) (err error) {
-	path := "databases/" + database
-	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
-		err = fmt.Errorf("database doesn't exist, please run setup")
-		return
-	}
-	db, err := bolt.Open(path, 0600, nil)
+	db, err := openDatabase(database, 0600, nil)
 	if err != nil {
-		return fmt.Errorf("could not open db, %v", err)
+		return commonerrors.ErrCannotOpenDatabase
 	}
 	defer db.Close()
 
@@ -87,7 +74,7 @@ func AddBirthdayToDatabase(database, id string, date time.Time) (err error) {
 	err = db.Update(func(tx *bolt.Tx) error {
 		err := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Put([]byte(id), []byte(dateString))
 		if err != nil {
-			return fmt.Errorf("could not insert birthday: %v", err)
+			return commonerrors.ErrCannotInsertIntoDB
 		}
 		return nil
 	})
@@ -96,22 +83,21 @@ func AddBirthdayToDatabase(database, id string, date time.Time) (err error) {
 }
 
 func GetBirthdaysFromDatabase(database string) (birthdays Birthdays, err error) {
-	path := "databases/" + database
-	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
-		err = fmt.Errorf("database doesn't exist, please run setup")
-		return
-	}
-
-	db, err := bolt.Open(path, 0600, nil)
+	db, err := openDatabase(database, 0600, nil)
 	if err != nil {
-		return birthdays, fmt.Errorf("could not open db, %v", err)
+		return []Birthday{}, commonerrors.ErrCannotOpenDatabase
 	}
 	defer db.Close()
 
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS"))
-		b.ForEach(func(k, v []byte) error {
-			birthdays = append(birthdays, Birthday{ID: string(k), Date: string(v)})
+		b.ForEach(func(k, v []byte) (err error) {
+			numSecondsSince1970, err1 := strconv.ParseInt(string(v), 10, 64)
+			if err1 != nil {
+				err = commonerrors.ErrCannotParse
+				return
+			}
+			birthdays = append(birthdays, Birthday{ID: string(k), Date: time.Unix(numSecondsSince1970, 0)})
 			return nil
 		})
 		return nil
@@ -120,10 +106,9 @@ func GetBirthdaysFromDatabase(database string) (birthdays Birthdays, err error) 
 }
 
 func SetupBirthdayDatabase(database, defaultChannel, timezone, server, interval string) (err error) {
-	path := "databases/" + database
-	db, err := bolt.Open(path, 0600, nil)
+	db, err := bolt.Open(database, 0600, nil)
 	if err != nil {
-		return fmt.Errorf("could not open db, %v", err)
+		return commonerrors.ErrCannotOpenDatabase
 	}
 	defer db.Close()
 
@@ -155,87 +140,47 @@ func SetupBirthdayDatabase(database, defaultChannel, timezone, server, interval 
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("could not set up buckets, %v", err)
+		return err
 	}
 	log.Info("Database Setup Done")
 	return nil
 }
 
 func GetDefaultChannel(database string) (channel string, err error) {
-	path := "databases/" + database
-	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
-		err = fmt.Errorf("database doesn't exist, please run setup")
-		return
-	}
-	db, err := bolt.Open(path, 0600, nil)
-	if err != nil {
-		return "", fmt.Errorf("could not open db, %v", err)
-	}
-	defer db.Close()
-
-	err = db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("DB"))
-		channel = string(b.Get([]byte("default channel")))
-		return nil
-	})
-	return
+	return getFromDatabase(database, "default channel")
 }
 
 func GetServerID(database string) (server string, err error) {
-	path := "databases/" + database
-	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
-		err = fmt.Errorf("database doesn't exist, please run setup")
-		return
-	}
-	db, err := bolt.Open(path, 0600, nil)
-	if err != nil {
-		return "", fmt.Errorf("could not open db, %v", err)
-	}
-	defer db.Close()
-
-	err = db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("DB"))
-		server = string(b.Get([]byte("ServerID")))
-		return nil
-	})
-	return
+	return getFromDatabase(database, "ServerID")
 }
 
 func GetTimezone(database string) (tz string, err error) {
-	path := "databases/" + database
-	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
-		err = fmt.Errorf("database doesn't exist, please run setup")
-		return
-	}
-	db, err := bolt.Open(path, 0600, nil)
-	if err != nil {
-		return "", fmt.Errorf("could not open db, %v", err)
-	}
-	defer db.Close()
-
-	err = db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("DB"))
-		tz = string(b.Get([]byte("timezone")))
-		return nil
-	})
-	return
+	return getFromDatabase(database, "timezone")
 }
 
 func GetTimeInterval(database string) (interval string, err error) {
-	path := "databases/" + database
-	if _, err1 := os.Stat(path); os.IsNotExist(err1) {
-		err = fmt.Errorf("database doesn't exist, please run setup")
+	return getFromDatabase(database, "time interval")
+}
+
+// opens database without creating it if it is missing
+func openDatabase(database string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, err error) {
+	if _, openFileError := os.Stat(database); os.IsNotExist(openFileError) {
+		err = commonerrors.ErrDatabaseNotExist
 		return
 	}
-	db, err := bolt.Open(path, 0600, nil)
+	return bolt.Open(database, mode, options)
+}
+
+func getFromDatabase(database, key string) (value string, err error) {
+	db, err := openDatabase(database, 0600, nil)
 	if err != nil {
-		return "", fmt.Errorf("could not open db, %v", err)
+		return "", commonerrors.ErrCannotOpenDatabase
 	}
 	defer db.Close()
 
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("DB"))
-		interval = string(b.Get([]byte("time interval")))
+		value = string(b.Get([]byte(key)))
 		return nil
 	})
 	return

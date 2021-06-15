@@ -15,7 +15,8 @@ import (
 const (
 	app = "discord_bot"
 	// CLI flags
-	Token = "token"
+	Token       = "token"
+	DatabaseDir = "database_dir"
 )
 
 var (
@@ -30,7 +31,8 @@ var rootCmd = &cobra.Command{
 Environment variables can be used instead of cli arguments. CLI arguments will take precedence.
 
 Environment Variables:
-	DISCORD_BOT_TOKEN string Bot token
+	DISCORD_BOT_TOKEN 	  string 	Bot token
+	DISCORD_BOT_DATABASES string 	Database directory
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
@@ -44,7 +46,7 @@ Environment Variables:
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		log.Errorf("Failed to start bot with error: %s", err)
+		log.Errorf("Failed to start birthday bot with error: %s", err)
 		os.Exit(1)
 	}
 	os.Exit(0)
@@ -59,13 +61,14 @@ func initCLI(ctx context.Context) (err error) {
 
 func init() {
 	rootCmd.Flags().StringP(Token, "t", "", "Bot token")
+	rootCmd.Flags().StringP(DatabaseDir, "d", "", "Database directory")
 
 	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_TOKEN", rootCmd.Flags().Lookup(Token))
+	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_DATABASES", rootCmd.Flags().Lookup(DatabaseDir))
 }
 
 func RunCLI(ctx context.Context) error {
 	if err := initCLI(ctx); err != nil {
-		log.Errorf("Failed to initialise CLI with error: %s", err)
 		return err
 	}
 

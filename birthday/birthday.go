@@ -1,17 +1,16 @@
 package commands
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/joshjennings98/discord-bot/utils"
-	log "github.com/sirupsen/logrus"
 )
 
 type BotConfiguration struct {
-	Token string `mapstructure:"token"`
+	Token     string `mapstructure:"token"`
+	Databases string `mapstructure:"databases"`
 }
 
 func (cfg *BotConfiguration) Validate() error {
@@ -23,18 +22,20 @@ func (cfg *BotConfiguration) Validate() error {
 
 	return validation.ValidateStruct(cfg,
 		validation.Field(&cfg.Token, validation.Required),
+		validation.Field(&cfg.Databases, validation.Required),
 	)
 }
 
 func DefaultBotConfig() *BotConfiguration {
 	return &BotConfiguration{
-		Token: "",
+		Token:     "",
+		Databases: "",
 	}
 }
 
 type Birthday struct {
 	ID   string
-	Date string
+	Date time.Time
 }
 
 type Birthdays []Birthday
@@ -44,15 +45,7 @@ func (b Birthdays) Len() int {
 }
 
 func (a Birthdays) Less(i, j int) (b bool) {
-	ai, err := strconv.ParseInt(a[i].Date, 10, 64)
-	if err != nil {
-		log.Errorf("Failed to parse unix time %s", ai)
-	}
-	aj, err := strconv.ParseInt(a[j].Date, 10, 64)
-	if err != nil {
-		log.Errorf("Failed to parse unix time %s", aj)
-	}
-	return time.Unix(ai, 0).YearDay() < time.Unix(aj, 0).YearDay() // YearDay :)
+	return a[i].Date.YearDay() < a[j].Date.YearDay() // YearDay :)
 }
 
 func (a Birthdays) Swap(i, j int) {
@@ -69,5 +62,6 @@ type Command struct {
 }
 
 type DiscordBot struct {
-	session *discordgo.Session
+	session   *discordgo.Session
+	databases string
 }

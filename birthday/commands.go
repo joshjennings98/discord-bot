@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,7 +15,6 @@ import (
 
 /*
 	TODO:
-	- For NEXT thing add a date
 	- Switch to proper / commands instead of checking every message?
 	- Remove non-birthday stuff (like the hi and ty stuff)?????
 	- ADD TESTS
@@ -51,8 +51,9 @@ type IDiscordBot interface {
 	Help(command *Command)
 }
 
-func (d *DiscordBot) AttachBotToSession(session *discordgo.Session) {
+func (d *DiscordBot) AttachBotToSession(session *discordgo.Session, databaseDir string) {
 	d.session = session
+	d.databases = databaseDir
 }
 
 func (d *DiscordBot) StartDiscordBot(command *Command) {
@@ -105,7 +106,7 @@ func (d *DiscordBot) ParseInput(m *discordgo.MessageCreate) (command Command, er
 	server := m.GuildID
 	command.Server = server
 	command.Channel = m.ChannelID
-	command.Database = utils.DatabaseFromServerID(server)
+	command.Database = filepath.Join(d.databases, utils.DatabaseFromServerID(server))
 	split := strings.Split(m.Content, " ")
 	var cleanedSplitCommand []string
 	for _, str := range split {
@@ -223,13 +224,7 @@ func (d *DiscordBot) NextBirthday(command *Command) {
 	var firstBirthdayID string
 
 	for i, birthday := range birthdays {
-		date64, err := strconv.ParseInt(birthday.Date, 10, 64)
-		if err != nil {
-			message := fmt.Sprintf("Error parsing birthday: %s", err.Error())
-			utils.LogAndSend(d.session, command.Channel, command.Server, message, err)
-			return
-		}
-		t := time.Unix(date64, 0)
+		t := birthday.Date
 		date := int(t.YearDay())
 		// to reduce logic for wrap around
 		if i == 0 {
@@ -243,7 +238,7 @@ func (d *DiscordBot) NextBirthday(command *Command) {
 		}
 	}
 	// catch any dates that have wrapped round (will only reach if no birthdays after today)
-	message := fmt.Sprintf("The next person to have their birthday is <@%s> in %d dayson %s %s.", firstBirthdayID, (utils.DaysInThisYear() - today + int(firstBirthdayDate.YearDay())), firstBirthdayDate.Month(), utils.AddNumSuffix(firstBirthdayDate.Day()))
+	message := fmt.Sprintf("The next person to have their birthday is <@%s> in %d days on %s %s.", firstBirthdayID, (utils.DaysInThisYear() - today + int(firstBirthdayDate.YearDay())), firstBirthdayDate.Month(), utils.AddNumSuffix(firstBirthdayDate.Day()))
 	utils.LogAndSend(d.session, command.Channel, command.Server, message, nil)
 }
 

@@ -42,7 +42,7 @@ func StartBot() (err error) {
 	dg.Identify.Intents = discordgo.IntentsGuildMessages
 
 	// Attach DiscordBot to session
-	DiscordBot.AttachBotToSession(dg)
+	DiscordBot.AttachBotToSession(dg, BotConfig.Databases)
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
@@ -96,7 +96,7 @@ func onReady(s *discordgo.Session, _ *discordgo.Ready) {
 		for {
 			select {
 			case <-ticker.C:
-				databases, err := ioutil.ReadDir("./databases")
+				databases, err := ioutil.ReadDir(BotConfig.Databases)
 				if err != nil {
 					log.Errorf("Could not find databases")
 				}

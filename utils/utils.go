@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	commonerrors "github.com/joshjennings98/discord-bot/errors"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -217,4 +218,26 @@ func AddNumSuffix(i int) string {
 	default:
 		return fmt.Sprintf("%dth", i)
 	}
+}
+
+const (
+	numSecondsInYear = 31449600
+	numSecondsInDay  = 86400
+)
+
+func UnixTimeToYearDay(s string) (int, error) {
+	numSecondsSince1970, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, commonerrors.ErrCannotParse
+	}
+	numYearsSince1970 := numSecondsSince1970 / numSecondsInYear
+	year := 1970 + numSecondsSince1970
+	isLeapYear := year != 2000 && year%4 == 0
+	numLeapYearsSince1970 := numYearsSince1970 / 4
+
+	yearday := numSecondsSince1970/numSecondsInDay - (numYearsSince1970)*365 + numLeapYearsSince1970
+	if isLeapYear {
+		yearday += 1
+	}
+	return yearday, nil
 }
