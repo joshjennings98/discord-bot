@@ -15,8 +15,8 @@ import (
 const (
 	app = "discord_bot"
 	// CLI flags
-	Token       = "token"
-	DatabaseDir = "database_dir"
+	Token           = "token"
+	MongoDBPassword = "mongodb_password"
 )
 
 var (
@@ -31,8 +31,9 @@ var rootCmd = &cobra.Command{
 Environment variables can be used instead of cli arguments. CLI arguments will take precedence.
 
 Environment Variables:
-	DISCORD_BOT_TOKEN 	  string 	Bot token
-	DISCORD_BOT_DATABASES string 	Database directory
+	DISCORD_BOT_TOKEN 	  		 string		Bot token
+	DISCORD_BOT_DATABASES 		 string		Database directory
+	DISCORD_BOT_MONGODB_PASSWORD string 	MongoDB password
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
@@ -61,10 +62,10 @@ func initCLI(ctx context.Context) (err error) {
 
 func init() {
 	rootCmd.Flags().StringP(Token, "t", "", "Bot token")
-	rootCmd.Flags().StringP(DatabaseDir, "d", "", "Database directory")
+	rootCmd.Flags().StringP(MongoDBPassword, "p", "", "Database directory")
 
 	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_TOKEN", rootCmd.Flags().Lookup(Token))
-	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_DATABASES", rootCmd.Flags().Lookup(DatabaseDir))
+	_ = utils.BindFlagToEnv(viperSession, app, "DISCORD_BOT_MONGODB_PASSWORD", rootCmd.Flags().Lookup(MongoDBPassword))
 }
 
 func RunCLI(ctx context.Context) error {

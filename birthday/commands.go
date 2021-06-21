@@ -24,9 +24,6 @@ import (
 	- (REMOVE THE UNNECESSARY UTILS)
 	- CLEAN UP FILES (move databse stuff to new file.)
 	- MAKE WORK ASYNCHRONOUSLY
-	- CREATE COMMONERRORS SORT OF THING SO ERRORS LOOK NICER
-	- IMPROVE ERRORS SO THEY DON'T SEND AS MUCH INFO TO DISCORD CHANNELS AND ONLY LOG ERRORS CAUSED BY ME
-	- ALSO MOVE ERRORS AROUND GET RID OF POINTLESS ONES
 */
 
 var validActions = map[string]func(*DiscordBot, *Command){
@@ -60,9 +57,8 @@ type IDiscordBot interface {
 	Help(command *Command)
 }
 
-func (d *DiscordBot) AttachBotToSession(session *discordgo.Session, databaseDir string) {
+func (d *DiscordBot) AttachBotToSession(session *discordgo.Session) {
 	d.session = session
-	d.databases = databaseDir
 }
 
 func (d *DiscordBot) StartDiscordBot(command *Command) {
@@ -120,7 +116,7 @@ func (d *DiscordBot) ParseInput(m *discordgo.MessageCreate) (command Command, er
 	server := m.GuildID
 	command.Server = server
 	command.Channel = m.ChannelID
-	command.Database = filepath.Join(d.databases, utils.DatabaseFromServerID(server))
+	command.Database = filepath.Join(server /*d.databases, utils.DatabaseFromServerID(server) */)
 	split := strings.Split(m.Content, " ")
 	var cleanedSplitCommand []string
 	for _, str := range split {

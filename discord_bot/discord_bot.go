@@ -1,8 +1,8 @@
 package discord_bot
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"regexp"
@@ -15,6 +15,10 @@ import (
 	commands "github.com/joshjennings98/discord-bot/birthday"
 	"github.com/joshjennings98/discord-bot/utils"
 	log "github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 var (
@@ -27,9 +31,38 @@ var (
 
 const (
 	prefixCmd = "!bd"
+	defaultDB = ""
 )
 
+func ConnectToMongoDB(ctx context.Context) (c *mongo.Client) {
+	client, err := mongo.NewClient(options.Client().ApplyURI(fmt.Sprintf("mongodb+srv://BirthdayBot3000:%s@birthdaybot3000cluster.bdglh.mongodb.net/%s?retryWrites=true&w=majority", BotConfig.MongoDBPassword, "")))
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = client.Connect(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = client.Ping(ctx, readpref.Primary())
+	if err != nil {
+		log.Fatal(err)
+	}
+	databases, err := client.ListDatabaseNames(ctx, bson.M{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("databases", databases)
+
+	commands.BirthdaysDatabase = client.Database("BirthdaysDatabase")
+	return client
+}
+
 func StartBot() (err error) {
+	// connect to mongodb
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	client := ConnectToMongoDB(ctx)
+	defer client.Disconnect(ctx)
+
 	// Create a new Discord session using the provided bot token.
 	dg, err := discordgo.New("Bot " + BotConfig.Token)
 	if err != nil {
@@ -42,7 +75,7 @@ func StartBot() (err error) {
 	dg.Identify.Intents = discordgo.IntentsGuildMessages
 
 	// Attach DiscordBot to session
-	DiscordBot.AttachBotToSession(dg, BotConfig.Databases)
+	DiscordBot.AttachBotToSession(dg)
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
@@ -96,30 +129,32 @@ func onReady(s *discordgo.Session, _ *discordgo.Ready) {
 		for {
 			select {
 			case <-ticker.C:
-				databases, err := ioutil.ReadDir(BotConfig.Databases)
+
+				databases, err := commands.GetServerKeys()
 				if err != nil {
 					log.Errorf("Could not find databases")
 				}
 				for _, db := range databases {
-					tz, err := commands.GetTimezone(db.Name())
+					tz, err := commands.GetTimezone(db)
 					if err != nil {
-						log.Error(fmt.Sprintf("Could not get timezone from database %s", db.Name()))
+						log.Error(fmt.Sprintf("Could not get timezone from database %s", db))
 					}
 					loc, err := time.LoadLocation(tz)
 					if err != nil {
 						log.Errorf("Invalid location '%s'", loc)
 					}
-					interval, err := commands.GetTimeInterval(db.Name())
+					interval, err := commands.GetTimeInterval(db)
 					if err != nil {
-						log.Errorf("Could not get time interval from database '%s'", db.Name())
+						log.Errorf("Could not get time interval from database '%s'", db)
 					}
 					i, err := strconv.Atoi(interval)
 					if err != nil {
 						log.Errorf("Invalid interval '%s'", interval)
 					}
 					if utils.InHourInterval(i, time.Now().In(loc)) {
-						commands.WishTodaysHappyBirthdays(s, db.Name())
+						commands.WishTodaysHappyBirthdays(s, db)
 					}
+
 				}
 			case <-quit:
 				ticker.Stop()

@@ -1,166 +1,198 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/boltdb/bolt"
 	commonerrors "github.com/joshjennings98/discord-bot/errors"
 	log "github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+var BirthdaysDatabase *mongo.Database
+
+const (
+	BirthdayDatabaseName = "databases"
+	Timeout              = 5 * time.Second
 )
 
 func CheckForBirthdaysInDatabase(database string, t time.Time) (birthdays []string, err error) {
-	db, err := openDatabase(database, 0600, nil)
-	if err != nil {
-		return nil, commonerrors.ErrCannotOpenDatabase
-	}
-	defer db.Close()
+	server_db := BirthdaysDatabase.Collection(BirthdayDatabaseName)
+	ctx, _ := context.WithTimeout(context.Background(), Timeout)
 
-	birthdays = []string{}
-	date := t.YearDay()
-	log.Info("Checking for today's birthdays")
-	err = db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS"))
-		b.ForEach(func(k, v []byte) error {
-			i, err1 := strconv.ParseInt(string(v), 10, 64)
-			if err1 != nil {
-				err = commonerrors.ErrCannotParse
-				return nil
-			}
-			if time.Unix(i, 0).YearDay() == date {
-				birthdays = append(birthdays, string(k))
-			}
-			return nil
-		})
-		return nil
-	})
+	var item ServerContent
+	if err1 := server_db.FindOne(ctx, bson.M{"server": database}).Decode(&item); err1 != nil {
+		err = commonerrors.ErrCannotOpenDatabase
+		return
+	}
+
+	for _, birthdayItem := range item.Birthdays {
+		if birthdayItem.Date.YearDay() == time.Now().YearDay() {
+			birthdays = append(birthdays, birthdayItem.ID)
+			return
+		}
+	}
 	return
 }
 
 func CheckForUsersBirthdayInDatabase(database, userID string) (birthday time.Time, err error) {
-	db, err := openDatabase(database, 0600, nil)
-	if err != nil {
-		return time.Unix(0, 0), commonerrors.ErrCannotOpenDatabase
-	}
-	defer db.Close()
+	server_db := BirthdaysDatabase.Collection(BirthdayDatabaseName)
+	ctx, _ := context.WithTimeout(context.Background(), Timeout)
 
-	log.Info(fmt.Sprintf("Checking for %s's birthdays in %s", userID, database))
-	err = db.View(func(tx *bolt.Tx) error {
-		bd := string(tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Get([]byte(userID)))
-		if bd == "" {
-			birthday = time.Unix(0, 0)
-			return nil
+	var item ServerContent
+	if err1 := server_db.FindOne(ctx, bson.M{"server": database}).Decode(&item); err1 != nil {
+		err = commonerrors.ErrCannotOpenDatabase
+		return
+	}
+
+	for _, birthdayItem := range item.Birthdays {
+		if birthdayItem.ID == userID {
+			birthday = birthdayItem.Date
+			return
 		}
-		epoch, err := strconv.ParseInt(bd, 10, 64)
-		if err != nil {
-			return commonerrors.ErrCannotParse
-		}
-		birthday = time.Unix(epoch, 0)
-		return nil
-	})
+	}
+	birthday = time.Unix(0, 0)
 	return
 }
 
+type ServerContent struct {
+	Id        primitive.ObjectID `bson:"_id,omitempty"`
+	Server    string             `bson:"server,omitempty"`
+	Channel   string             `bson:"channel,omitempty"`
+	Timezone  string             `bson:"timezone,omitempty"`
+	Time      string             `bson:"time,omitempty"`
+	Birthdays []Birthday         `bson:"birthdays,omitempty"`
+}
+
+type ServerKeys struct {
+	Id        primitive.ObjectID `bson:"_id,omitempty"`
+	IsKeyList bool               `bson:"isKeyList,omitempty"`
+	Keys      []string           `bson:"keys,omitempty"`
+}
+
 func AddBirthdayToDatabase(database, id string, date time.Time) (err error) {
-	db, err := openDatabase(database, 0600, nil)
-	if err != nil {
+	server_db := BirthdaysDatabase.Collection(BirthdayDatabaseName)
+	ctx, _ := context.WithTimeout(context.Background(), Timeout)
+
+	var item ServerContent
+
+	if err = server_db.FindOne(ctx, bson.M{"server": database}).Decode(&item); err != nil {
 		return commonerrors.ErrCannotOpenDatabase
 	}
-	defer db.Close()
 
-	dateString := strconv.FormatInt(date.Unix(), 10)
-	err = db.Update(func(tx *bolt.Tx) error {
-		err1 := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS")).Put([]byte(id), []byte(dateString))
-		if err1 != nil {
-			err = commonerrors.ErrCannotInsertIntoDB
-			return nil
+	existsInDB := false
+	birthdays := item.Birthdays
+	for i := range birthdays {
+		if birthdays[i].ID == id {
+			birthdays[i].Date = date
+			existsInDB = true
 		}
-		return nil
-	})
+	}
+	if !existsInDB {
+		birthdays = append(birthdays, Birthday{
+			ID:   id,
+			Date: date,
+		})
+	}
+
+	if _, err = server_db.UpdateOne(ctx,
+		bson.M{"server": database},
+		bson.D{{"$set", bson.D{{"birthdays", birthdays}}}}); err != nil {
+		return commonerrors.ErrCannotInsertIntoDB
+	}
+
 	log.Info(fmt.Sprintf("Added Birthday for %s on %s %d\n", id, date.Month().String(), date.Day()))
 	return err
 }
 
 func GetBirthdaysFromDatabase(database string) (birthdays Birthdays, err error) {
-	db, err := openDatabase(database, 0600, nil)
-	if err != nil {
-		return []Birthday{}, commonerrors.ErrCannotOpenDatabase
+	serverContent, err1 := getServerContent(database)
+	if err1 != nil {
+		err = err1
+		return
 	}
-	defer db.Close()
-
-	err = db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("DB")).Bucket([]byte("BIRTHDAYS"))
-		b.ForEach(func(k, v []byte) error {
-			numSecondsSince1970, err1 := strconv.ParseInt(string(v), 10, 64)
-			if err1 != nil {
-				err = commonerrors.ErrCannotParse
-				return nil
-			}
-			birthdays = append(birthdays, Birthday{ID: string(k), Date: time.Unix(numSecondsSince1970, 0)})
-			return nil
-		})
-		return nil
-	})
-	return
+	return serverContent.Birthdays, nil
 }
 
 func SetupBirthdayDatabase(database, defaultChannel, timezone, server, interval string) (err error) {
-	db, err := bolt.Open(database, 0600, nil)
-	if err != nil {
+	server_db := BirthdaysDatabase.Collection(BirthdayDatabaseName)
+	ctx, _ := context.WithTimeout(context.Background(), Timeout)
+
+	var item ServerKeys
+	if err = server_db.FindOne(ctx, bson.M{"isKeyList": true}).Decode(&item); err != nil {
 		return commonerrors.ErrCannotOpenDatabase
 	}
-	defer db.Close()
-
-	err = db.Update(func(tx *bolt.Tx) error {
-		root, err := tx.CreateBucketIfNotExists([]byte("DB"))
-		if err != nil {
-			return fmt.Errorf("could not create root bucket: %v", err)
+	keys := item.Keys
+	for i := range keys {
+		if keys[i] == server {
+			return
 		}
-		_, err = root.CreateBucketIfNotExists([]byte("BIRTHDAYS"))
-		if err != nil {
-			return fmt.Errorf("could not create birthdays bucket: %v", err)
-		}
-		err = tx.Bucket([]byte("DB")).Put([]byte("default channel"), []byte(defaultChannel))
-		if err != nil {
-			return fmt.Errorf("could not insert default channel: %v", err)
-		}
-		err = tx.Bucket([]byte("DB")).Put([]byte("ServerID"), []byte(server))
-		if err != nil {
-			return fmt.Errorf("could not insert server id: %v", err)
-		}
-		err = tx.Bucket([]byte("DB")).Put([]byte("timezone"), []byte(timezone))
-		if err != nil {
-			return fmt.Errorf("could not insert timezone: %v", err)
-		}
-		err = tx.Bucket([]byte("DB")).Put([]byte("time interval"), []byte(interval))
-		if err != nil {
-			return fmt.Errorf("could not insert time interval: %v", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
 	}
+
+	keys = append(keys, server)
+
+	if _, err = server_db.UpdateOne(ctx,
+		bson.M{"isKeyList": true},
+		bson.D{{"$set", bson.D{{"keys", keys}}}}); err != nil {
+		return commonerrors.ErrCannotInsertIntoDB
+	}
+
+	_, err = server_db.InsertOne(ctx, bson.D{
+		{Key: "server", Value: server},
+		{Key: "channel", Value: defaultChannel},
+		{Key: "timezone", Value: timezone},
+		{Key: "time", Value: interval},
+		{Key: "birthdays", Value: []Birthday{}},
+	})
+
+	if err != nil {
+		log.Error(err)
+		return commonerrors.ErrCannotOpenDatabase
+	}
+
 	log.Info("Database Setup Done")
 	return nil
 }
 
 func GetDefaultChannel(database string) (channel string, err error) {
-	return getFromDatabase(database, "default channel")
+	serverContent, err1 := getServerContent(database)
+	if err1 != nil {
+		err = err1
+		return
+	}
+	return serverContent.Channel, nil
 }
 
 func GetServerID(database string) (server string, err error) {
-	return getFromDatabase(database, "ServerID")
+	serverContent, err1 := getServerContent(database)
+	if err1 != nil {
+		err = err1
+		return
+	}
+	return serverContent.Server, nil
 }
 
 func GetTimezone(database string) (tz string, err error) {
-	return getFromDatabase(database, "timezone")
+	serverContent, err1 := getServerContent(database)
+	if err1 != nil {
+		err = err1
+		return
+	}
+	return serverContent.Timezone, nil
 }
 
 func GetTimeInterval(database string) (interval string, err error) {
-	return getFromDatabase(database, "time interval")
+	serverContent, err1 := getServerContent(database)
+	if err1 != nil {
+		err = err1
+		return
+	}
+	return serverContent.Time, nil
 }
 
 // opens database without creating it if it is missing
@@ -172,18 +204,26 @@ func openDatabase(database string, mode os.FileMode, options *bolt.Options) (db 
 	return bolt.Open(database, mode, options)
 }
 
-func getFromDatabase(database, key string) (value string, err error) {
-	db, err1 := openDatabase(database, 0600, nil)
-	if err1 != nil {
+func getServerContent(database string) (value ServerContent, err error) {
+	server_db := BirthdaysDatabase.Collection(BirthdayDatabaseName)
+	ctx, _ := context.WithTimeout(context.Background(), Timeout)
+
+	if err1 := server_db.FindOne(ctx, bson.M{"server": database}).Decode(&value); err1 != nil {
 		err = commonerrors.ErrCannotOpenDatabase
 		return
 	}
-	defer db.Close()
+	return
+}
 
-	err = db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("DB"))
-		value = string(b.Get([]byte(key)))
-		return nil
-	})
+func GetServerKeys() (keys []string, err error) {
+	server_db := BirthdaysDatabase.Collection(BirthdayDatabaseName)
+	ctx, _ := context.WithTimeout(context.Background(), Timeout)
+
+	var item ServerKeys
+	if err1 := server_db.FindOne(ctx, bson.M{"isKeyList": true}).Decode(&item); err1 != nil {
+		err = commonerrors.ErrCannotOpenDatabase
+		return
+	}
+	keys = item.Keys
 	return
 }

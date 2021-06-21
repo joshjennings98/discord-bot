@@ -9,8 +9,8 @@ import (
 )
 
 type BotConfiguration struct {
-	Token     string `mapstructure:"token"`
-	Databases string `mapstructure:"databases"`
+	Token           string `mapstructure:"token"`
+	MongoDBPassword string `mapstructure:"mongodb_password"`
 }
 
 func (cfg *BotConfiguration) Validate() error {
@@ -22,14 +22,14 @@ func (cfg *BotConfiguration) Validate() error {
 
 	return validation.ValidateStruct(cfg,
 		validation.Field(&cfg.Token, validation.Required),
-		validation.Field(&cfg.Databases, validation.Required),
+		validation.Field(&cfg.MongoDBPassword, validation.Required),
 	)
 }
 
 func DefaultBotConfig() *BotConfiguration {
 	return &BotConfiguration{
-		Token:     "",
-		Databases: "",
+		Token:           "",
+		MongoDBPassword: "",
 	}
 }
 
