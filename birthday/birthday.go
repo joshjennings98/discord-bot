@@ -5,31 +5,24 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	validation "github.com/go-ozzo/ozzo-validation"
-	"github.com/joshjennings98/discord-bot/utils"
 )
 
 type BotConfiguration struct {
-	Token           string `mapstructure:"token"`
-	MongoDBPassword string `mapstructure:"mongodb_password"`
+	Token      string `mapstructure:"token"`
+	MongoDBURI string `mapstructure:"mongodb_uri"`
 }
 
 func (cfg *BotConfiguration) Validate() error {
-	// Validate Embedded Structs
-	err := utils.ValidateEmbedded(cfg)
-	if err != nil {
-		return err
-	}
-
 	return validation.ValidateStruct(cfg,
 		validation.Field(&cfg.Token, validation.Required),
-		validation.Field(&cfg.MongoDBPassword, validation.Required),
+		validation.Field(&cfg.MongoDBURI, validation.Required),
 	)
 }
 
 func DefaultBotConfig() *BotConfiguration {
 	return &BotConfiguration{
-		Token:           "",
-		MongoDBPassword: "",
+		Token:      "",
+		MongoDBURI: "",
 	}
 }
 
@@ -62,6 +55,5 @@ type Command struct {
 }
 
 type DiscordBot struct {
-	session   *discordgo.Session
-	databases string
+	session *discordgo.Session
 }

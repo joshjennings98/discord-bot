@@ -1,8 +1,7 @@
 module github.com/joshjennings98/discord-bot
 
+// +heroku goVersion go1.13
 go 1.13
-
-replace github.com/joshjennings98/discord-bot => /home/josh/discord-bot
 
 require (
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect

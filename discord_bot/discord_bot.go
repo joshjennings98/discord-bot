@@ -35,7 +35,7 @@ const (
 )
 
 func ConnectToMongoDB(ctx context.Context) (c *mongo.Client) {
-	client, err := mongo.NewClient(options.Client().ApplyURI(fmt.Sprintf("mongodb+srv://BirthdayBot3000:%s@birthdaybot3000cluster.bdglh.mongodb.net/%s?retryWrites=true&w=majority", BotConfig.MongoDBPassword, "")))
+	client, err := mongo.NewClient(options.Client().ApplyURI(BotConfig.MongoDBURI))
 	if err != nil {
 		log.Fatal(err)
 	}
