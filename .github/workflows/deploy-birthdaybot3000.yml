@@ -16,5 +16,5 @@ jobs:
           heroku_app_name: "birthdaybot3000" #Must be unique in Heroku
           heroku_email: "jenninjl01@gmail.com"
         env:
-          DISCORD_BOT_MONGODB_URI: ${{secrets.MONGODB_URI}}
-          DISCORD_BOT_TOKEN: ${{secrets.DISCORD_BOT_TOKEN}}
+          HD_DISCORD_BOT_MONGODB_URI: ${{secrets.MONGODB_URI}}
+          HD_DISCORD_BOT_TOKEN: ${{secrets.DISCORD_BOT_TOKEN}}
