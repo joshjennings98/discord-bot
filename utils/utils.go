@@ -8,50 +8,40 @@ import (
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
-	commonerrors "github.com/joshjennings98/discord-bot/errors"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-)
-
-const (
-	SimpleTimeFormat = "15:04:05"
-	FullDateFormat   = "02/01/06 03:04:05 PM"
 )
 
 type Validator interface {
 	Validate() error
 }
 
-// Use reflection to find embedded structs and validate them
-func ValidateEmbedded(cfg Validator) error {
-	r := reflect.ValueOf(cfg).Elem()
-	for i := 0; i < r.NumField(); i++ {
-		f := r.Field(i)
-		if f.Kind() == reflect.Struct {
-			validator, ok := f.Addr().Interface().(Validator)
-			if !ok {
-				continue
-			}
-			err := validator.Validate()
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+type Month struct {
+	Name string
+	Days int
 }
 
-// Loads the configuration from the environment and puts the entries into the configuration object.
-// If not found in the environment, the values will come from the default values.
-// `envVarPrefix` defines a prefix that ENVIRONMENT variables will use.  E.g. if your prefix is "spf", the env registry will look for env variables that start with "SPF_".
-func Load(envVarPrefix string, configurationToSet Validator, defaultConfiguration Validator) error {
-	return LoadFromViper(viper.New(), envVarPrefix, configurationToSet, defaultConfiguration)
+const (
+	SimpleTimeFormat = "15:04:05"
+	FullDateFormat   = "02/01/06 03:04:05 PM"
+)
 
+var monthDays = [12]Month{
+	{"January", 31},
+	{"February", 28},
+	{"March", 31},
+	{"April", 30},
+	{"May", 31},
+	{"June", 30},
+	{"July", 31},
+	{"August", 31},
+	{"September", 30},
+	{"October", 31},
+	{"November", 30},
+	{"December", 30},
 }
 
-// Same as `Load` but instead of creating a new viper session, reuse the one provided.
 func LoadFromViper(viperSession *viper.Viper, envVarPrefix string, configurationToSet Validator, defaultConfiguration Validator) (err error) {
 	// Load Defaults
 	var defaults map[string]interface{}
@@ -64,9 +54,6 @@ func LoadFromViper(viperSession *viper.Viper, envVarPrefix string, configuration
 		return
 	}
 
-	// Load .env file contents into environment, if it exists
-	_ = godotenv.Load(".env")
-
 	// Load Environment variables
 	viperSession.SetEnvPrefix(envVarPrefix)
 	viperSession.AllowEmptyEnv(false)
@@ -76,13 +63,13 @@ func LoadFromViper(viperSession *viper.Viper, envVarPrefix string, configuration
 	if err := viperSession.Unmarshal(configurationToSet); err != nil {
 		return fmt.Errorf("unable to decode config into struct, %w", err)
 	}
+
 	// Run validation
 	err = configurationToSet.Validate()
 	return
 }
 
-// Binds pflags to environment variable.
-func BindFlagToEnv(viperSession *viper.Viper, envVarPrefix string, envVar string, flag *pflag.Flag) (err error) {
+func BindFlagToEnvironmentVariable(viperSession *viper.Viper, envVarPrefix string, envVar string, flag *pflag.Flag) (err error) {
 	err = viperSession.BindPFlag(envVar, flag)
 	if err != nil {
 		return
@@ -144,11 +131,6 @@ func SplitCommand(input string) []string {
 	return r
 }
 
-type Month struct {
-	Name string
-	Days int
-}
-
 func AppendZero(i int) string {
 	if i < 10 {
 		return fmt.Sprintf("0%d", i)
@@ -160,20 +142,6 @@ func ConvertYearDayToDate(day string) (date string, err error) {
 	count, err := strconv.Atoi(day)
 	if err != nil {
 		return "", fmt.Errorf("error parsing day as date %w", err)
-	}
-	monthDays := [12]Month{
-		{"January", 31},
-		{"February", 28},
-		{"March", 31},
-		{"April", 30},
-		{"May", 31},
-		{"June", 30},
-		{"July", 31},
-		{"August", 31},
-		{"September", 30},
-		{"October", 31},
-		{"November", 30},
-		{"December", 30},
 	}
 	for _, month := range monthDays {
 		count -= month.Days
@@ -188,7 +156,7 @@ func ConvertYearDayToDate(day string) (date string, err error) {
 
 func DaysInThisYear() int {
 	y := time.Now().Year()
-	if y%4 == 0 {
+	if (y%4 == 0 && y%100 != 0) || y%400 == 0 {
 		return 366
 	}
 	return 365
@@ -219,26 +187,4 @@ func AddNumSuffix(i int) string {
 	default:
 		return fmt.Sprintf("%dth", i)
 	}
-}
-
-const (
-	numSecondsInYear = 31449600
-	numSecondsInDay  = 86400
-)
-
-func UnixTimeToYearDay(s string) (int, error) {
-	numSecondsSince1970, err := strconv.Atoi(s)
-	if err != nil {
-		return 0, commonerrors.ErrCannotParse
-	}
-	numYearsSince1970 := numSecondsSince1970 / numSecondsInYear
-	year := 1970 + numSecondsSince1970
-	isLeapYear := year != 2000 && year%4 == 0
-	numLeapYearsSince1970 := numYearsSince1970 / 4
-
-	yearday := numSecondsSince1970/numSecondsInDay - (numYearsSince1970)*365 + numLeapYearsSince1970
-	if isLeapYear {
-		yearday += 1
-	}
-	return yearday, nil
 }
