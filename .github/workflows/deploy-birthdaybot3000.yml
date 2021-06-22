@@ -18,3 +18,4 @@ jobs:
         env:
           HD_DISCORD_BOT_MONGODB_URI: ${{secrets.MONGODB_URI}}
           HD_DISCORD_BOT_TOKEN: ${{secrets.DISCORD_BOT_TOKEN}}
+      - run: heroku ps:scale worker=1
