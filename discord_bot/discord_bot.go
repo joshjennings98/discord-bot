@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -24,9 +23,6 @@ import (
 var (
 	BotConfig  commands.BotConfiguration
 	DiscordBot commands.DiscordBot
-
-	hiRegex *regexp.Regexp
-	tyRegex *regexp.Regexp
 )
 
 const (
@@ -83,10 +79,6 @@ func StartBot() (err error) {
 		return fmt.Errorf("error opening connection: %w", err)
 	}
 
-	// setup regex stuff
-	hiRegex = regexp.MustCompile(fmt.Sprintf(`^(hello|hi) <@!?%s>`, dg.State.User.ID))
-	tyRegex = regexp.MustCompile(fmt.Sprintf(`^(thanks|ty|thank you) <@!?%s>`, dg.State.User.ID)) // deliberate design decision to allow for stuff after the thank you in case there is more content to the thanks
-
 	// Wait here until CTRL-C or other term signal is received.
 	log.Info("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
@@ -99,21 +91,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Ignore all messages created by the bot itself
 	if m.Author.ID == s.State.User.ID {
 		return
-	}
-
-	// Check for interaction with bot
-	for _, user := range m.Mentions {
-		if user.ID == s.State.User.ID {
-			log.Info(fmt.Sprintf("DiscordBot mentioned in message: '%s'", m.Content))
-			// Check for someone saying hi
-			if hiRegex.MatchString(strings.ToLower(m.Content)) {
-				utils.LogAndSend(s, m.ChannelID, m.GuildID, fmt.Sprintf("Hello %s", m.Author.Mention()), nil)
-			}
-			// Check for someone saying thank you
-			if tyRegex.MatchString(strings.ToLower(m.Content)) {
-				utils.LogAndSend(s, m.ChannelID, m.GuildID, fmt.Sprintf("You are welcome %s", m.Author.Mention()), nil)
-			}
-		}
 	}
 
 	// Check for prefix
@@ -129,6 +106,8 @@ func onReady(s *discordgo.Session, _ *discordgo.Ready) {
 		for {
 			select {
 			case <-ticker.C:
+
+				log.Info("Checking for birthdays")
 
 				databases, err := commands.GetServerKeys()
 				if err != nil {

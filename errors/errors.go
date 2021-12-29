@@ -8,4 +8,5 @@ var (
 	ErrIDNotInDatabase    = errors.New("user id not in database")
 	ErrCannotParse        = errors.New("cannot parse value")
 	ErrCannotInsertIntoDB = errors.New("cannot insert value into database")
+	ErrCannotUpdateDB     = errors.New("cannot update database")
 )

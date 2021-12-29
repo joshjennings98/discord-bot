@@ -3,10 +3,8 @@ package commands
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
-	"github.com/boltdb/bolt"
 	commonerrors "github.com/joshjennings98/discord-bot/errors"
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
@@ -130,6 +128,14 @@ func SetupBirthdayDatabase(database, defaultChannel, timezone, server, interval 
 	keys := item.Keys
 	for i := range keys {
 		if keys[i] == server {
+			if _, err = server_db.UpdateOne(ctx,
+				bson.M{"server": server},
+				bson.D{{"$set", bson.D{
+					{Key: "channel", Value: defaultChannel},
+					{Key: "timezone", Value: timezone},
+					{Key: "time", Value: interval}}}}); err != nil {
+				return commonerrors.ErrCannotUpdateDB
+			}
 			return
 		}
 	}
@@ -193,15 +199,6 @@ func GetTimeInterval(database string) (interval string, err error) {
 		return
 	}
 	return serverContent.Time, nil
-}
-
-// opens database without creating it if it is missing
-func openDatabase(database string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, err error) {
-	if _, openFileError := os.Stat(database); os.IsNotExist(openFileError) {
-		err = commonerrors.ErrDatabaseNotExist
-		return
-	}
-	return bolt.Open(database, mode, options)
 }
 
 func getServerContent(database string) (value ServerContent, err error) {

@@ -88,7 +88,7 @@ func BindFlagToEnvironmentVariable(viperSession *viper.Viper, envVarPrefix strin
 }
 
 func IsValidDate(s string) bool {
-	re := regexp.MustCompile(`^(3[01]|[12][0-9]|0?[1-9])/(1[0-2]|0?[1-9])`)
+	re := regexp.MustCompile(`(^((0[1-9]|[12]\d|3[01])\/(0[13578]|1[02]))|((0[1-9]|[12]\d|30)\/(0[13456789]|1[012]))|((0[1-9]|1\d|2[0-8])\/02)|(29\/02))$`)
 	return re.MatchString(s)
 }
 
@@ -179,10 +179,19 @@ func Contains(arr interface{}, elem interface{}) bool {
 func AddNumSuffix(i int) string {
 	switch i % 10 {
 	case 1:
+		if i == 11 {
+			return fmt.Sprintf("%dth", i)
+		}
 		return fmt.Sprintf("%dst", i)
 	case 2:
+		if i == 12 {
+			return fmt.Sprintf("%dth", i)
+		}
 		return fmt.Sprintf("%dnd", i)
 	case 3:
+		if i == 13 {
+			return fmt.Sprintf("%dth", i)
+		}
 		return fmt.Sprintf("%drd", i)
 	default:
 		return fmt.Sprintf("%dth", i)

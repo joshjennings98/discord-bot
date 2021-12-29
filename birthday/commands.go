@@ -15,15 +15,9 @@ import (
 
 /*
 	TODO:
-	- Switch to proper / commands instead of checking every message?
-	- Remove non-birthday stuff (like the hi and ty stuff)?????
-	- ADD TESTS
-	- ADD CI
-	- Add locks to database checking
-	- change birthday with to `@everyone, it is @user's birthday today :party_face:`
-	- (REMOVE THE UNNECESSARY UTILS)
-	- CLEAN UP FILES (move databse stuff to new file.)
-	- MAKE WORK ASYNCHRONOUSLY
+	- Switch to proper '/' commands instead of checking every message?
+	- Add tests and CI
+	- Make everything work asynchronously (not necessary as it isn't on more than a couple of servers)
 */
 
 var validActions = map[string]func(*DiscordBot, *Command){
@@ -42,7 +36,7 @@ const helpMessage = "**BirthdayBot Usage:**\n" +
 	"`!bd today` - check who is having their birthday today\n" +
 	"`!bd when <user>` - see a specific users birthday\n" +
 	"`!bd setup <timezone/tz> <hour 0..23>` - run the setup\n" +
-	"`!bd help` - see the abysmal help"
+	"`!bd help` - see this help message"
 
 type IDiscordBot interface {
 	AttachBotToSession(session *discordgo.Session)
@@ -89,7 +83,7 @@ func (d *DiscordBot) StartDiscordBot(command *Command) {
 	if err != nil {
 		message = "Failed to set up database."
 	} else {
-		message = fmt.Sprintf("Successfully set up database in timezone '%s' with reminder at %s:00.", tz, utils.AppendZero(datetimeInt))
+		message = fmt.Sprintf("Successfully set up database in timezone '%s' with reminder between %s:00 and %s:00.", tz, utils.AppendZero(datetimeInt), utils.AppendZero((datetimeInt+1)%24))
 	}
 	utils.LogAndSend(d.session, command.Channel, command.Server, message, err)
 }
@@ -199,7 +193,7 @@ func (d *DiscordBot) AddBirthday(command *Command) {
 		utils.LogAndSend(d.session, command.Channel, command.Server, message, err)
 		return
 	}
-	message := fmt.Sprintf("Successfully added birthday for <@!%s> on %s %s.", id, datetime.Month(), utils.AddNumSuffix(datetime.Day()))
+	message := fmt.Sprintf("Successfully set birthday for <@!%s> to %s %s.", id, datetime.Month(), utils.AddNumSuffix(datetime.Day()))
 	utils.LogAndSend(d.session, command.Channel, command.Server, message, nil)
 }
 
