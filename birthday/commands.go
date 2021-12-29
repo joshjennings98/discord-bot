@@ -31,7 +31,7 @@ var validActions = map[string]func(*DiscordBot, *Command){
 
 // Need to use backticks so can't use normal multiline strings
 const helpMessage = "**BirthdayBot Usage:**\n" +
-	"`!bd add <user> <dd/mm>` - add a new birthday to the database\n" +
+	"`!bd add <user> <dd/mm>` - set a users birthday in the database\n" +
 	"`!bd next` - see who is having their birthday next\n" +
 	"`!bd today` - check who is having their birthday today\n" +
 	"`!bd when <user>` - see a specific users birthday\n" +

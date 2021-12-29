@@ -4,7 +4,7 @@ A discord bot written in Go that uses MongoDB and Heroku to host a bot that keep
 
 ## Usage
 
-- `!bd add <user> <dd/mm>` - add a new birthday to the database
+- `!bd add <user> <dd/mm>` - set a users birthday in the database
 - `!bd next` - see who is having their birthday next
 - `!bd today` - check who is having their birthday today
 - `!bd when <user>` - see a specific users birthday
