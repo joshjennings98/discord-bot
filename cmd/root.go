@@ -32,7 +32,7 @@ Environment variables can be used instead of cli arguments. CLI arguments will t
 
 Environment Variables:
 	DISCORD_BOT_TOKEN 	  	string	Bot token
-	DISCORD_BOT_MONGODB_URI string 	MongoDB password
+	DISCORD_BOT_MONGODB_URI string 	MongoDB URI Password
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
@@ -61,7 +61,7 @@ func initCLI(ctx context.Context) (err error) {
 
 func init() {
 	rootCmd.Flags().StringP(Token, "t", "", "Bot token")
-	rootCmd.Flags().StringP(MongoDBURI, "p", "", "Database directory")
+	rootCmd.Flags().StringP(MongoDBURI, "p", "", "MongoDB URI Password")
 
 	_ = utils.BindFlagToEnvironmentVariable(viperSession, app, "DISCORD_BOT_TOKEN", rootCmd.Flags().Lookup(Token))
 	_ = utils.BindFlagToEnvironmentVariable(viperSession, app, "DISCORD_BOT_MONGODB_URI", rootCmd.Flags().Lookup(MongoDBURI))
