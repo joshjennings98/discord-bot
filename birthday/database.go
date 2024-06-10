@@ -29,10 +29,12 @@ func CheckForBirthdaysInDatabase(database string, t time.Time) (birthdays []stri
 		return
 	}
 
+	todayMonth := t.Month()
+	todayDay := t.Day()
 	for _, birthdayItem := range item.Birthdays {
-		if birthdayItem.Date.YearDay() == time.Now().YearDay() {
+		birthday := birthdayItem.Date
+		if birthday.Month() == todayMonth && birthday.Day() == todayDay {
 			birthdays = append(birthdays, birthdayItem.ID)
-			return
 		}
 	}
 	return
